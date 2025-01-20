@@ -26,6 +26,20 @@ Additionally, this repository includes **Jupyter Notebooks** with detailed step-
 1. Apply pre-trained models.  
 2. Train your own classifiers.   
 
+## Acknowledgements
+
+I would like to express my sincere gratitude to the following individuals for their invaluable contributions to this project:
+
+- **Code Refactoring and Integration in SpikeInterface:**  
+  Chris Halcrow, Jake Swann, Robyn Greene, Sangeetha Nandakumar (IBOTS)  
+
+- **Model Curators:**  
+  Nilufar Lahiji, Sacha Abou Rachid, Severin Graff, Luca Koenig, Natalia Babushkina, Simon Musall  
+
+- **Advisors:**  
+  Alessio Buccino, Matthias Hennig, Simon Musall  
+
+
 ## Feedback and Contributions  
 We encourage feedback, contributions, and collaboration from the community to improve UnitRefine. Feel free to open issues or submit pull requests to enhance the toolbox further.  
 
