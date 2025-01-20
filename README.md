@@ -12,7 +12,8 @@ With a focus on accessibility and broad community adoption, UnitRefine offers:
 1. **Pre-trained Models**: Apply ready-to-use classifiers for noise removal and unit refinement.  
 2. **Custom Training**: Train models on your own data to meet specific experimental needs.  
 3. **Integration**: Fully integrated with SpikeInterface for a smooth user experience.  
-4. **Collaboration**: Share or download models from the Hugging Face Hub, enabling community-driven advancements.  
+4. **Collaboration**: Share or download models from the [Hugging Face Hub](https://huggingface.co/collections/SpikeInterface/curation-models-66ebf53d7f17088991062c2c), enabling community-driven advancements.
+
 
 ## Getting Started  
 ### Installation  
