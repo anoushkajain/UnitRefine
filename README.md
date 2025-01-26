@@ -35,7 +35,7 @@ I would like to express my sincere gratitude to the following individuals for th
   Chris Halcrow, Jake Swann, Robyn Greene, Sangeetha Nandakumar (IBOTS)  
 
 - **Model Curators:**  
-  Nilufar Lahiji, Sacha Abou Rachid, Severin Graff, Luca Koenig, Natalia Babushkina, Simon Musall  
+  Nilufar Lahiji, Sacha Abou Rachid, Severin Graff, Luca Koenig, Natalia Babushkina, Anoushka Jain, Simon Musall  
 
 - **Advisors:**  
   Alessio Buccino, Matthias Hennig, Simon Musall  
