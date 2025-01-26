@@ -36,8 +36,6 @@ This repository contains two scripts, `model_based_curation.py` and `strain_manu
 - For seamless integration and practical use, please install and use the official [SpikeInterface repository](https://github.com/SpikeInterface).
 - These scripts rely on features already available in the SpikeInterface library.
 
-### How to Use:
-If you're interested in understanding the implementation details, you can read through the code provided here. For real-world usage, please follow the guidelines in the official SpikeInterface documentation.
 
 ## Acknowledgements
 
