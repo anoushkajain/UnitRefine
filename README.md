@@ -6,7 +6,9 @@ With a focus on accessibility and broad community adoption, UnitRefine offers:
 - Seamless integration with **SpikeInterface**.  
 - Pre-trained machine learning models for effortless application.  
 - The flexibility to train custom models using your own curated datasets and metrics.  
-- Easy sharing of trained models via **Hugging Face Hub**, fostering collaboration and reproducibility.  
+- Easy sharing of trained models via **Hugging Face Hub**, fostering collaboration and reproducibility.
+- A manually curated dataset, labeled by 7 experts across 11 recordings, is also available.
+- Each recording was annotated by 2 to 5 people, with an agreement rate of 80% among the curators.
 
 ## Key Features  
 1. **Pre-trained Models**: Apply ready-to-use classifiers for noise removal and unit refinement.  
@@ -29,7 +31,7 @@ Additionally, this repository includes **Jupyter Notebooks** with detailed step-
 
 ## Reference Scripts
 
-This repository contains two scripts, `model_based_curation.py` and `strain_manual_curation.py`, that provide a detailed explanation of how certain features work when integrated with the [SpikeInterface](https://github.com/SpikeInterface) library. 
+This repository contains two scripts, `model_based_curation.py` and `train_manual_curation.py`, that provide a detailed explanation of how certain features work when integrated with the [SpikeInterface](https://github.com/SpikeInterface) library. 
 
 ### Important Notes:
 - These scripts **cannot be used independently**. They are designed for understanding the inner workings of SpikeInterface-related functionalities.
