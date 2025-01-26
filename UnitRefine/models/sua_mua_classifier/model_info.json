@@ -1,0 +1,11 @@
+{
+    "metric_params": {},
+    "requirements": {
+        "spikeinterface": "0.102.0",
+        "scikit-learn": "1.4.2"
+    },
+    "label_conversion": {
+        "0": "mua",
+        "1": "sua"
+    }
+}

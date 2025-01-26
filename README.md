@@ -44,7 +44,7 @@ This repository contains two scripts, `model_based_curation.py` and `train_manua
 I would like to express my sincere gratitude to the following individuals for their invaluable contributions to this project:
 
 - **Code Refactoring and Integration in SpikeInterface:**  
-  Chris Halcrow, Jake Swann, Robyn Greene, Sangeetha Nandakumar (IBOTS)  
+  Chris Halcrow, Jake Swann, Robyn Greene, Sangeetha Nandakumar (IBOTS), Anoushka Jain 
 
 - **Model Curators:**  
   Nilufar Lahiji, Sacha Abou Rachid, Severin Graff, Luca Koenig, Natalia Babushkina, Anoushka Jain, Simon Musall  
