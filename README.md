@@ -16,7 +16,6 @@ With a focus on accessibility and broad community adoption, UnitRefine offers:
 3. **Integration**: Fully integrated with SpikeInterface for a smooth user experience.  
 4. **Collaboration**: Share or download models from the [Hugging Face Hub](https://huggingface.co/collections/SpikeInterface/curation-models-66ebf53d7f17088991062c2c), enabling community-driven advancements.
 
-
 ## Getting Started  
 ### Installation  
 Ensure that **SpikeInterface** is installed in your environment. Installation instructions can be found [here](https://spikeinterface.readthedocs.io/en/latest/get_started/installation.html).  
@@ -38,7 +37,6 @@ This repository contains two scripts, `model_based_curation.py` and `train_manua
 - For seamless integration and practical use, please install and use the official [SpikeInterface repository](https://github.com/SpikeInterface).
 - These scripts rely on features already available in the SpikeInterface library.
 
-
 ## Acknowledgements
 
 I would like to express my sincere gratitude to the following individuals for their invaluable contributions to this project:
@@ -52,6 +50,11 @@ I would like to express my sincere gratitude to the following individuals for th
 - **Advisors:**  
   Alessio Buccino, Matthias Hennig, Simon Musall  
 
+## Citation
+
+If you find **UnitRefine** useful in your research, please cite the following DOI: [https://doi.org/10.6084/m9.figshare.28282841.v2](https://doi.org/10.6084/m9.figshare.28282841.v2).
+
+We will be releasing a pre-print soon. In the meantime, please use the above DOI for referencing.
 
 ## Feedback and Contributions  
 We encourage feedback, contributions, and collaboration from the community to improve UnitRefine. Feel free to open issues or submit pull requests to enhance the toolbox further.  
