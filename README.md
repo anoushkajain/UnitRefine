@@ -7,7 +7,7 @@ With a focus on accessibility and broad community adoption, UnitRefine offers:
 - Pre-trained machine learning models for effortless application.  
 - The flexibility to train custom models using your own curated datasets and metrics.  
 - Easy sharing of trained models via **Hugging Face Hub**, fostering collaboration and reproducibility.
-- A manually curated dataset, labeled by 7 experts across 11 recordings, is also available.
+- A manually curated dataset, labeled by 7 experts across 11 Neuropixels 1.0 recordings in mice, is also available.
 - Each recording was annotated by 2 to 5 people, with an agreement rate of 80% among the curators.
 
 ## Key Features  
@@ -44,10 +44,10 @@ This repository contains two scripts, `model_based_curation.py` and `train_manua
 I would like to express my sincere gratitude to the following individuals for their invaluable contributions to this project:
 
 - **Code Refactoring and Integration in SpikeInterface:**  
-  Chris Halcrow, Jake Swann, Robyn Greene, Sangeetha Nandakumar (IBOTS), Anoushka Jain 
+  Chris Halcrow, Jake Swann, Robyn Greene, Sangeetha Nandakumar (IBOTS)
 
 - **Model Curators:**  
-  Nilufar Lahiji, Sacha Abou Rachid, Severin Graff, Luca Koenig, Natalia Babushkina, Anoushka Jain, Simon Musall  
+  Nilufar Lahiji, Sacha Abou Rachid, Severin Graff, Luca Koenig, Natalia Babushkina, Simon Musall  
 
 - **Advisors:**  
   Alessio Buccino, Matthias Hennig, Simon Musall  
