@@ -15,6 +15,11 @@ With a focus on accessibility and broad community adoption, UnitRefine offers:
 2. **Custom Training**: Train models on your own data to meet specific experimental needs.  
 3. **Integration**: Fully integrated with SpikeInterface for a smooth user experience.  
 4. **Collaboration**: Share or download models from the [Hugging Face Hub](https://huggingface.co/collections/SpikeInterface/curation-models-66ebf53d7f17088991062c2c), enabling community-driven advancements.
+5. **Agnostic** to probe type, species, brain region & spike sorter.
+
+## Citation
+If you find **UnitRefine** useful in your research, please cite the following DOI: [https://doi.org/10.6084/m9.figshare.28282841.v2](https://doi.org/10.6084/m9.figshare.28282841.v2).
+We will be releasing a pre-print soon. In the meantime, please use the above DOI for referencing.
 
 ## Getting Started  
 ### Installation  
@@ -50,11 +55,6 @@ I would like to express my sincere gratitude to the following individuals for th
 - **Advisors:**  
   Alessio Buccino, Matthias Hennig, Simon Musall  
 
-## Citation
-
-If you find **UnitRefine** useful in your research, please cite the following DOI: [https://doi.org/10.6084/m9.figshare.28282841.v2](https://doi.org/10.6084/m9.figshare.28282841.v2).
-
-We will be releasing a pre-print soon. In the meantime, please use the above DOI for referencing.
 
 ## Feedback and Contributions  
 We encourage feedback, contributions, and collaboration from the community to improve UnitRefine. Feel free to open issues or submit pull requests to enhance the toolbox further.  
