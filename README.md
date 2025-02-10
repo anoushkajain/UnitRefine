@@ -52,8 +52,8 @@ I would like to express my sincere gratitude to the following individuals for th
 - **Model Curators:**  
   Nilufar Lahiji, Sacha Abou Rachid, Severin Graff, Luca Koenig, Natalia Babushkina, Simon Musall  
 
-- **Advisors:**  
-  Alessio Buccino, Matthias Hennig, Simon Musall  
+- **Advisors and collaborators:**  
+  Alessio Buccino, Sonja Grün, Matthias Hennig, Simon Musall  
 
 
 ## Feedback and Contributions  
