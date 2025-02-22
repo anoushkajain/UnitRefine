@@ -14,8 +14,12 @@ With a focus on accessibility and broad community adoption, UnitRefine offers:
 1. **Pre-trained Models**: Apply ready-to-use classifiers for noise removal and unit refinement.  
 2. **Custom Training**: Train models on your own data to meet specific experimental needs.  
 3. **Integration**: Fully integrated with SpikeInterface for a smooth user experience.  
-4. **Collaboration**: Share or download models from the [Hugging Face Hub](https://huggingface.co/collections/SpikeInterface/curation-models-66ebf53d7f17088991062c2c), enabling community-driven advancements.
+4. **Models**: Share or download models from the [Hugging Face Hub](https://huggingface.co/collections/SpikeInterface/curation-models-66ebf53d7f17088991062c2c), enabling community-driven advancements.
+5. **Agnostic** to probe type, species, brain region & spike sorter.
 
+## Citation
+If you find **UnitRefine** useful in your research, please cite the following DOI: [https://doi.org/10.6084/m9.figshare.28282841.v2](https://doi.org/10.6084/m9.figshare.28282841.v2).
+We will be releasing a pre-print soon. In the meantime, please use the above DOI for referencing.
 
 ## Getting Started  
 ### Installation  
@@ -38,7 +42,6 @@ This repository contains two scripts, `model_based_curation.py` and `train_manua
 - For seamless integration and practical use, please install and use the official [SpikeInterface repository](https://github.com/SpikeInterface).
 - These scripts rely on features already available in the SpikeInterface library.
 
-
 ## Acknowledgements
 
 I would like to express my sincere gratitude to the following individuals for their invaluable contributions to this project:
@@ -49,8 +52,8 @@ I would like to express my sincere gratitude to the following individuals for th
 - **Model Curators:**  
   Nilufar Lahiji, Sacha Abou Rachid, Severin Graff, Luca Koenig, Natalia Babushkina, Simon Musall  
 
-- **Advisors:**  
-  Alessio Buccino, Matthias Hennig, Simon Musall  
+- **Advisors and collaborators:**  
+  Alessio Buccino, Sonja Grün, Matthias Hennig, Simon Musall  
 
 
 ## Feedback and Contributions  
