@@ -21,15 +21,30 @@ With a focus on accessibility and broad community adoption, UnitRefine offers:
 If you find **UnitRefine** useful in your research, please cite the following DOI: [https://doi.org/10.6084/m9.figshare.28282841.v2](https://doi.org/10.6084/m9.figshare.28282841.v2).
 We will be releasing a pre-print soon. In the meantime, please use the above DOI for referencing.
 
-## Getting Started  
-### Installation  
-Ensure that **SpikeInterface** is installed in your environment. Installation instructions can be found [here](https://spikeinterface.readthedocs.io/en/latest/get_started/installation.html).  
+## Installation
+
+To use this package, you can install it in two ways:
+
+### 1. Install with `pyproject.toml` to use UnitRefine 
+
+If you want to use **UnitRefine**, install the package using:
+
+```bash
+pip install .
+```
+### 2. Simply install Spikeinterface to use UnitRefine in your existing workflows 
+
+```bash
+pip install spikeinterface[full]
+```
+
+More installation instructions can be found [here](https://spikeinterface.readthedocs.io/en/latest/get_started/installation.html).  
 
 ### Tutorials  
 To get started with UnitRefine, refer to the automated curation tutorials available in the SpikeInterface documentation:  
 [Automated Curation Tutorials](https://spikeinterface.readthedocs.io/en/latest/tutorials_custom_index.html#automated-curation-tutorials)  
 
-Additionally, this repository includes **Jupyter Notebooks** with detailed step-by-step tutorials on how to:  
+Additionally, this repository includes **Jupyter Notebooks** in [section](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial) with detailed step-by-step tutorials on how to:  
 1. Apply pre-trained models.  
 2. Train your own classifiers.   
 
