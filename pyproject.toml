@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "UnitRefine"
+version = "0.1"
+description = "UnitRefine is a machine-learning toolbox that simplifies spike sorting curation by reducing manual curation."
+authors = [
+    { name = "Anoushka Jain", email = "jain.anoushka3@gmail.com" }
+]
+license = { file = "LICENSE" }
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "scikit-learn",
+    "spikeinterface[full]"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "flake8"
+]
+
+[tool.setuptools]
+packages = ["UnitRefine"]

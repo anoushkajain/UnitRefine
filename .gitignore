@@ -1,0 +1,8 @@
+# Ignore Visual Studio temporary files, build results
+__pycache__
+
+# Ignore egg-info directories
+*.egg-info
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints

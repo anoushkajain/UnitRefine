@@ -16,7 +16,12 @@ import warnings
 import re
 
 from spikeinterface.core import SortingAnalyzer
-from spikeinterface.curation.train_manual_curation import (
+# from spikeinterface.curation.train_manual_curation import (
+#     try_to_get_metrics_from_analyzer,
+#     _get_computed_metrics,
+#     _format_metric_dataframe,
+#) 
+from UnitRefine.scripts.train_manual_curation import (
     try_to_get_metrics_from_analyzer,
     _get_computed_metrics,
     _format_metric_dataframe,
