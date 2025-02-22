@@ -1,2 +1,2 @@
 ,classifier name,imputation_strategy,scaling_strategy,balanced_accuracy,precision,recall,model_id,best_params
-0,RandomForestClassifier,median,StandardScaler(),0.2500,0.1667,0.2500,0,"{'n_estimators': 100, 'min_samples_split': 2, 'min_samples_leaf': 4, 'criterion': 'entropy', 'class_weight': 'balanced'}"
+0,RandomForestClassifier,median,StandardScaler(),1.0000,1.0000,1.0000,0,"{'n_estimators': 150, 'min_samples_split': 4, 'min_samples_leaf': 4, 'criterion': 'gini', 'class_weight': 'balanced'}"
