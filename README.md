@@ -17,9 +17,10 @@ With a focus on accessibility and broad community adoption, UnitRefine offers:
 4. **Models**: Share or download models from the [Hugging Face Hub](https://huggingface.co/collections/SpikeInterface/curation-models-66ebf53d7f17088991062c2c), enabling community-driven advancements.
 5. **Agnostic** to probe type, species, brain region & spike sorter.
 
-## Citation
-If you find **UnitRefine** useful in your research, please cite the following DOI: [[https://doi.org/10.6084/m9.figshare.28282841.v2].
-This is our a pre-print on bioRxiv.
+## 📌 Citation
+
+If you find **UnitRefine** useful in your research, please cite our preprint: https://www.biorxiv.org/content/10.1101/2025.03.30.645770v1
+
 
 ## Installation
 
