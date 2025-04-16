@@ -18,8 +18,8 @@ With a focus on accessibility and broad community adoption, UnitRefine offers:
 5. **Agnostic** to probe type, species, brain region & spike sorter.
 
 ## Citation
-If you find **UnitRefine** useful in your research, please cite the following DOI: [https://doi.org/10.6084/m9.figshare.28282841.v2](https://doi.org/10.6084/m9.figshare.28282841.v2).
-We will be releasing a pre-print soon. In the meantime, please use the above DOI for referencing.
+If you find **UnitRefine** useful in your research, please cite the following DOI: [[https://doi.org/10.6084/m9.figshare.28282841.v2].
+This is our a pre-print on bioRxiv.
 
 ## Installation
 
