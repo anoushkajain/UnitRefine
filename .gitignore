@@ -6,3 +6,6 @@ __pycache__
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints
+
+# Mac users
+.DS_Store
