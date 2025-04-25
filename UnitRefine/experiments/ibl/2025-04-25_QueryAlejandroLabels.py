@@ -4,7 +4,9 @@ from pathlib import Path
 import pandas as pd
 one = ONE(base_url='https://alyx.internationalbrainlab.org')
 
-dsets = one.alyx.rest('datasets', 'list', django='name__icontains,clusters.curatedLabels')
+dsets = one.alyx.rest('datasets', 'list', django=
+'name__icontains,clusters.curatedLabels,session__projects__name__istartswith,witten'
+                      )
 
 df_recordings = pd.DataFrame(
     {'eid': [dset['session'][-36:] for dset in dsets],
