@@ -6,15 +6,15 @@
                 "firing_rate",
                 "presence_ratio",
                 "snr",
+                "amplitude_cutoff",
+                "amplitude_median",
+                "amplitude_cv_median",
+                "amplitude_cv_range",
                 "isi_violations_ratio",
                 "isi_violations_count",
                 "rp_contamination",
                 "rp_violations",
                 "sliding_rp_violation",
-                "amplitude_cutoff",
-                "amplitude_median",
-                "amplitude_cv_median",
-                "amplitude_cv_range",
                 "sync_spike_2",
                 "sync_spike_4",
                 "sync_spike_8",
@@ -35,8 +35,8 @@
         }
     },
     "requirements": {
-        "spikeinterface": "0.102.2",
-        "scikit-learn": "1.5.2"
+        "spikeinterface": "0.102.3",
+        "scikit-learn": "1.6.1"
     },
     "label_conversion": {
         "0": 0,
