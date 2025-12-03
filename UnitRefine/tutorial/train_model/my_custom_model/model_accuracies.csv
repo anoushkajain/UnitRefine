@@ -1,3 +1,0 @@
-,classifier name,imputation_strategy,scaling_strategy,balanced_accuracy,precision,recall,model_id,best_params
-0,RandomForestClassifier,median,StandardScaler(),0.7500,0.8333,0.7500,0,"OrderedDict([('class_weight', 'balanced'), ('criterion', 'entropy'), ('min_samples_leaf', 4), ('min_samples_split', 3), ('n_estimators', 117)])"
-1,GradientBoostingClassifier,median,StandardScaler(),0.5000,0.5000,0.5000,1,"{'learning_rate': np.float64(0.10792438191042535), 'max_depth': 2, 'min_samples_leaf': 4, 'min_samples_split': 4, 'n_estimators': 107}"
