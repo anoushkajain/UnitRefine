@@ -1,29 +1,37 @@
-[build-system]
-requires = ["setuptools>=64", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "UnitRefine"
+name = "unitrefine"
 version = "0.1"
 description = "UnitRefine is a machine-learning toolbox that simplifies spike sorting curation by reducing manual curation."
 authors = [
-    { name = "Anoushka Jain", email = "jain.anoushka3@gmail.com" }
+    { name = "Anoushka Jain", email = "jain.anoushka3@gmail.com" },
+    { name = "Chris Halcrow", email = "chrishalcrow@gmail.com" },
 ]
+readme = "README.md"
+requires-python = ">=3.11"
 license = { file = "LICENSE" }
 dependencies = [
-    "numpy",
-    "scipy",
-    "pandas",
-    "scikit-learn",
-    "spikeinterface[full]"
+    "numcodecs==0.15.1",
+    "numba>=0.61.0",
+    "pandas>=2.2.3",
+    "pyqtgraph>=0.13.7",
+    "spikeinterface",
+    "pyyaml>=6.0.2",
+    "scikit-learn>=1.6.1",
+    "skops>=0.11.0",
+    "huggingface-hub>=0.35.0",
+    "spikeinterface-gui",
+    "pyqt5>=5.15.11",
+    "s3fs>=2025.10.0",
+    "modal-python>=0.4.2.1",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "black",
-    "flake8"
-]
+[build-system]
+requires = ["setuptools>=62.0"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["UnitRefine"]
+packages = ["unitrefine"]
+package-dir = {"unitrefine" = "src/unitrefine"}
+
+[project.scripts]
+unitrefine = "unitrefine.main:main"
