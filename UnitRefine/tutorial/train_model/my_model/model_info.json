@@ -25,24 +25,7 @@
             "peak_sign": null,
             "seed": null,
             "metric_params": {
-                "drift": {
-                    "interval_s": 60,
-                    "min_spikes_per_interval": 100,
-                    "direction": "y",
-                    "min_num_bins": 2
-                },
-                "snr": {
-                    "peak_sign": "neg",
-                    "peak_mode": "extremum"
-                },
-                "sliding_rp_violation": {
-                    "min_spikes": 0,
-                    "bin_size_ms": 0.25,
-                    "window_size_s": 1,
-                    "exclude_ref_period_below_ms": 0.5,
-                    "max_ref_period_ms": 10,
-                    "contamination_values": null
-                },
+                "isolation_distance": {},
                 "amplitude_cv": {
                     "average_num_spikes_per_bin": 50,
                     "percentiles": [
@@ -52,47 +35,37 @@
                     "min_num_bins": 10,
                     "amplitude_extension": "spike_amplitudes"
                 },
-                "l_ratio": {},
+                "d_prime": {},
+                "amplitude_median": {
+                    "peak_sign": "neg"
+                },
+                "synchrony": {},
+                "drift": {
+                    "interval_s": 60,
+                    "min_spikes_per_interval": 100,
+                    "direction": "y",
+                    "min_num_bins": 2
+                },
                 "nearest_neighbor": {
                     "max_spikes": 10000,
                     "n_neighbors": 5
                 },
-                "isolation_distance": {},
-                "amplitude_cutoff": {
-                    "peak_sign": "neg",
-                    "num_histogram_bins": 100,
-                    "histogram_smoothing_value": 3,
-                    "amplitudes_bins_min_ratio": 5
-                },
-                "amplitude_median": {
-                    "peak_sign": "neg"
-                },
-                "presence_ratio": {
-                    "bin_duration_s": 60,
-                    "mean_fr_ratio_thresh": 0.0
-                },
-                "isi_violation": {
-                    "isi_threshold_ms": 1.5,
-                    "min_isi_ms": 0
-                },
-                "d_prime": {},
+                "num_spikes": {},
+                "l_ratio": {},
                 "sd_ratio": {
                     "censored_period_ms": 4.0,
                     "correct_for_drift": true,
                     "correct_for_template_itself": true
                 },
-                "synchrony": {
-                    "synchrony_sizes": [
-                        2,
-                        4,
-                        8
-                    ]
+                "isi_violation": {
+                    "isi_threshold_ms": 1.5,
+                    "min_isi_ms": 0
                 },
-                "num_spikes": {},
-                "firing_rate": {},
-                "rp_violation": {
-                    "refractory_period_ms": 1.0,
-                    "censored_period_ms": 0.0
+                "amplitude_cutoff": {
+                    "peak_sign": "neg",
+                    "num_histogram_bins": 100,
+                    "histogram_smoothing_value": 3,
+                    "amplitudes_bins_min_ratio": 5
                 },
                 "firing_range": {
                     "bin_size_s": 5,
@@ -100,6 +73,27 @@
                         5,
                         95
                     ]
+                },
+                "rp_violation": {
+                    "refractory_period_ms": 1.0,
+                    "censored_period_ms": 0.0
+                },
+                "presence_ratio": {
+                    "bin_duration_s": 60,
+                    "mean_fr_ratio_thresh": 0.0
+                },
+                "firing_rate": {},
+                "sliding_rp_violation": {
+                    "min_spikes": 0,
+                    "bin_size_ms": 0.25,
+                    "window_size_s": 1,
+                    "exclude_ref_period_below_ms": 0.5,
+                    "max_ref_period_ms": 10,
+                    "contamination_values": null
+                },
+                "snr": {
+                    "peak_sign": "neg",
+                    "peak_mode": "extremum"
                 },
                 "silhouette": {
                     "method": [
@@ -145,7 +139,7 @@
             "peak_sign": "neg",
             "upsampling_factor": 10,
             "metric_params": {
-                "repolarization_slope": {
+                "recovery_slope": {
                     "recovery_window_ms": 0.7,
                     "peak_relative_threshold": 0.2,
                     "peak_width_ms": 0.1,
@@ -158,33 +152,7 @@
                     "spread_smooth_um": 20,
                     "column_range": null
                 },
-                "half_width": {
-                    "recovery_window_ms": 0.7,
-                    "peak_relative_threshold": 0.2,
-                    "peak_width_ms": 0.1,
-                    "depth_direction": "y",
-                    "min_channels_for_velocity": 5,
-                    "min_r2_velocity": 0.5,
-                    "exp_peak_function": "ptp",
-                    "min_r2_exp_decay": 0.5,
-                    "spread_threshold": 0.2,
-                    "spread_smooth_um": 20,
-                    "column_range": null
-                },
-                "num_positive_peaks": {
-                    "recovery_window_ms": 0.7,
-                    "peak_relative_threshold": 0.2,
-                    "peak_width_ms": 0.1,
-                    "depth_direction": "y",
-                    "min_channels_for_velocity": 5,
-                    "min_r2_velocity": 0.5,
-                    "exp_peak_function": "ptp",
-                    "min_r2_exp_decay": 0.5,
-                    "spread_threshold": 0.2,
-                    "spread_smooth_um": 20,
-                    "column_range": null
-                },
-                "peak_to_valley": {
+                "peak_trough_ratio": {
                     "recovery_window_ms": 0.7,
                     "peak_relative_threshold": 0.2,
                     "peak_width_ms": 0.1,
@@ -210,7 +178,7 @@
                     "spread_smooth_um": 20,
                     "column_range": null
                 },
-                "recovery_slope": {
+                "peak_to_valley": {
                     "recovery_window_ms": 0.7,
                     "peak_relative_threshold": 0.2,
                     "peak_width_ms": 0.1,
@@ -223,7 +191,33 @@
                     "spread_smooth_um": 20,
                     "column_range": null
                 },
-                "peak_trough_ratio": {
+                "num_positive_peaks": {
+                    "recovery_window_ms": 0.7,
+                    "peak_relative_threshold": 0.2,
+                    "peak_width_ms": 0.1,
+                    "depth_direction": "y",
+                    "min_channels_for_velocity": 5,
+                    "min_r2_velocity": 0.5,
+                    "exp_peak_function": "ptp",
+                    "min_r2_exp_decay": 0.5,
+                    "spread_threshold": 0.2,
+                    "spread_smooth_um": 20,
+                    "column_range": null
+                },
+                "repolarization_slope": {
+                    "recovery_window_ms": 0.7,
+                    "peak_relative_threshold": 0.2,
+                    "peak_width_ms": 0.1,
+                    "depth_direction": "y",
+                    "min_channels_for_velocity": 5,
+                    "min_r2_velocity": 0.5,
+                    "exp_peak_function": "ptp",
+                    "min_r2_exp_decay": 0.5,
+                    "spread_threshold": 0.2,
+                    "spread_smooth_um": 20,
+                    "column_range": null
+                },
+                "half_width": {
                     "recovery_window_ms": 0.7,
                     "peak_relative_threshold": 0.2,
                     "peak_width_ms": 0.1,
@@ -250,7 +244,7 @@
         }
     },
     "requirements": {
-        "spikeinterface": "0.102.0",
+        "spikeinterface": "0.102.2",
         "scikit-learn": "1.5.2"
     },
     "label_conversion": {
