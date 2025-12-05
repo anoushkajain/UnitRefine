@@ -16,6 +16,9 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
     """
     This function will be called instead of the original closeEvent.
     """
+
+    print("I am inside the custom close handler")
+
     re_labelled_unit_ids = []
     re_labels = []
 
@@ -35,7 +38,10 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
     labels_df['unit_id'] = re_labelled_unit_ids
     labels_df = labels_df.sort_values('unit_id')
 
-    labels_df.to_csv(save_folder / f"relabelled_units_{model_name}.csv", index=False)
+    relabelled_units_path = save_folder / f"relabelled_units_{model_name}.csv"
+
+    print(f"I am saving the relabelled units at {relabelled_units_path}")
+    labels_df.to_csv(relabelled_units_path, index=False)
 
 argv = sys.argv[1:]
 
