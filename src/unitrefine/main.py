@@ -351,12 +351,21 @@ class MainWindow(QtWidgets.QWidget):
         if dialog.exec():
             url = dialog.get_url()
             if repo_exists(url):
-                self.project.models = self.project.models + [(url.split('/')[-1], "hfh")]
                 model_directory = self.project.folder_name / "models" / url.split('/')[-1]
                 model_directory.mkdir(exist_ok=True)
 
+                self.project.models = self.project.models + [(model_directory, "hfh")]
+
                 from huggingface_hub import snapshot_download
-                snapshot_download(url, local_dir=model_directory)
+
+                print(f"\nDownloading model from HuggingFaceHub repo {url}.\n")
+
+                QtWidgets.QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
+                try:
+                    snapshot_download(url, local_dir=model_directory)
+                finally:
+                    QtWidgets.QApplication.restoreOverrideCursor()
 
                 with open(model_directory / 'hfh_path.txt', 'w') as output:
                     output.write(url)
@@ -471,7 +480,7 @@ class MainWindow(QtWidgets.QWidget):
 
     def make_validate_button_list(self):
 
-        for widget_no in range(4, self.validateLayout.count()):
+        for widget_no in range(5, self.validateLayout.count()):
             self.validateLayout.itemAt(widget_no).widget().deleteLater()
 
         for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
