@@ -21,6 +21,7 @@ from PyQt5.QtWidgets import QStyleFactory
 from unitrefine.train import TrainWindow
 from spikeinterface_gui.main import check_folder_is_analyzer
 from spikeinterface.core.core_tools import is_path_remote
+from spikeinterface.core import load_sorting_analyzer
 
 class UrlInputDialog(QtWidgets.QDialog):
     def __init__(self, parent=None, default=None, background_color=None):
@@ -351,15 +352,47 @@ class MainWindow(QtWidgets.QWidget):
         if dialog.exec():
             url = dialog.get_url()
             if repo_exists(url):
-                self.project.models = self.project.models + [(url.split('/')[-1], "hfh")]
                 model_directory = self.project.folder_name / "models" / url.split('/')[-1]
                 model_directory.mkdir(exist_ok=True)
 
+                self.project.models = self.project.models + [(model_directory, "hfh")]
+
                 from huggingface_hub import snapshot_download
-                snapshot_download(url, local_dir=model_directory)
+
+                print(f"\nDownloading model from HuggingFaceHub repo {url}.\n")
+
+                QtWidgets.QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
+                try:
+                    snapshot_download(url, local_dir=model_directory)
+                finally:
+                    QtWidgets.QApplication.restoreOverrideCursor()
 
                 with open(model_directory / 'hfh_path.txt', 'w') as output:
                     output.write(url)
+
+                model_info_path = model_directory / "model_info.json"
+                with open(model_info_path, 'r') as f:
+                    model_info = json.load(f)
+
+                updated_model_info = {}
+                translation_dict = {
+                    'MUA': ['mua'],
+                    'good': ['sua', 'SUA', 'neural'],
+                    'noise': [],
+                }
+                for label_index, label in model_info['label_conversion'].items():
+                    new_label = label
+                    for sigui_label, user_labels in translation_dict.items():
+                        if label in user_labels:
+                            new_label = sigui_label
+                    
+                    updated_model_info[label_index] = new_label
+                model_info['label_conversion'] = updated_model_info
+
+                model_info_path = model_directory / "model_info.json"
+                with open(model_info_path, 'w') as f:
+                    json.dump(model_info, f, indent=4)
 
                 self.make_model_list()
 
@@ -471,7 +504,7 @@ class MainWindow(QtWidgets.QWidget):
 
     def make_validate_button_list(self):
 
-        for widget_no in range(4, self.validateLayout.count()):
+        for widget_no in range(5, self.validateLayout.count()):
             self.validateLayout.itemAt(widget_no).widget().deleteLater()
 
         for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
@@ -524,14 +557,36 @@ class MainWindow(QtWidgets.QWidget):
         X_just_values = []
         y_new = []
 
-        for analyzer_name in self.project.analyzers:
+        for analyzer_name, analyzer_dict in self.project.analyzers.items():
 
             folder_name = self.project.folder_name
             save_path = Path(folder_name / "analyzers" / f"analyzer_{analyzer_name}")
 
             relabelled_units = pd.read_csv(save_path / f"relabelled_units_{self.project.selected_model.name}.csv")
-            all_metrics = pd.read_csv(save_path / "all_metrics.csv")
-            original_labels = pd.read_csv(save_path / "labels.csv")
+            all_metrics_path = save_path / "all_metrics.csv"
+            if all_metrics_path.is_file():
+                all_metrics = pd.read_csv(all_metrics_path)
+            else:
+                analyzer = load_sorting_analyzer(analyzer_dict['path'], load_extensions=False)
+                analyzer.load_extension("quality_metrics")
+                analyzer.load_extension("template_metrics")
+                if analyzer.has_extension('template_metrics'):
+                    tms = analyzer.get_extension("template_metrics").get_data()
+                else:
+                    tms = pd.DataFrame()
+                
+                if analyzer.has_extension('quality_metrics'):
+                    qms = analyzer.get_extension("quality_metrics").get_data()
+                else:
+                    qms = pd.DataFrame()
+                
+                all_metrics = pd.concat([qms, tms], axis=1)
+                all_metrics['unit_id'] = all_metrics.index
+            labels_path = save_path / "labels.csv"
+            if labels_path.is_file():
+                original_labels = pd.read_csv(save_path / "labels.csv")
+            else:
+                original_labels = pd.DataFrame(columns=['quality', 'unit_id'])
 
             all_metrics = all_metrics[np.concat([model_metric_names, ['unit_id']])]
 
@@ -581,7 +636,8 @@ class MainWindow(QtWidgets.QWidget):
         
         self.make_model_list()
         
-        print(f"balanced accuracy = {learner.score(all_training_data.drop('unit_id', axis=1).values, all_labels['0'].values)=}")
+        print(f"Successfully retrained model! Saved at {retrained_model_folder}.")
+        print(f"balanced accuracy = {learner.score(all_training_data.drop('unit_id', axis=1).values, all_labels['0'].values)}")
 
         
 
