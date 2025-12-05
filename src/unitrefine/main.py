@@ -524,10 +524,11 @@ class MainWindow(QtWidgets.QWidget):
 
             button_text = "---"
             if self.project.selected_model is not None:
-                relabelled_units_path = self.project.folder_name / analyzer['analyzer_in_project'] / f"relabelled_units_{self.project.selected_model}.csv"
-                if relabelled_units_path.is_file():
+                relabelled_units_path = self.project.folder_name / analyzer['analyzer_in_project'] / f"relabelled_units_{self.project.selected_model}.csv"                    
+                all_metrics_path = self.project.folder_name / analyzer['analyzer_in_project'] / "all_metrics.csv"                    
+                if all_metrics_path.is_file() and relabelled_units_path.is_file():
+                    all_metrics = pd.read_csv(all_metrics_path)
                     labels = pd.read_csv(relabelled_units_path)
-                    all_metrics = pd.read_csv(self.project.folder_name / analyzer['analyzer_in_project'] / "all_metrics.csv")
                     button_text = f"{len(labels)}/{len(all_metrics)}"
             
             self.validateLayout.addWidget(curate_button,4+analyzer_index,0,1,3)
