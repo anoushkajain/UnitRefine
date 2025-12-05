@@ -23,6 +23,7 @@ dependencies = [
     "pyqt5>=5.15.11",
     "s3fs>=2025.10.0",
     "modal-python>=0.4.2.1",
+    "pyqt5-qt5<5.15.18; sys_platform == 'win32' and platform_machine == 'AMD64'",
 ]
 
 [build-system]
@@ -35,3 +36,8 @@ package-dir = {"unitrefine" = "src/unitrefine"}
 
 [project.scripts]
 unitrefine = "unitrefine.main:main"
+
+[tool.uv]
+required-environments = [
+  "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
