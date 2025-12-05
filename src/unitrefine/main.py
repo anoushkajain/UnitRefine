@@ -266,20 +266,25 @@ class MainWindow(QtWidgets.QWidget):
         validateWidget = QtWidgets.QWidget()
         validateWidget.setStyleSheet("background-color: Pink")
 
-        self.validateLayout = QtWidgets.QGridLayout()
+        self.modelANDvalidateLayout = QtWidgets.QVBoxLayout(validateWidget)
+        self.modelLayout = QtWidgets.QGridLayout()
 
         validateTitleWidget = QtWidgets.QLabel("4. VALIDATE AND REFINE")
         validateTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        self.validateLayout.addWidget(validateTitleWidget,0,0)
+        self.modelLayout.addWidget(validateTitleWidget,0,0)
 
         trainTitleWidget = QtWidgets.QLabel("Choose your model:")
-        self.validateLayout.addWidget(trainTitleWidget,1,0,1,3)
+        self.modelLayout.addWidget(trainTitleWidget,1,0,1,3)
+
+        self.validateLayout = QtWidgets.QGridLayout()
 
         trainTitleWidget = QtWidgets.QLabel("And validate it on an analyzer:")
         self.validateLayout.addWidget(trainTitleWidget,3,0,1,3)
 
+        self.modelANDvalidateLayout.addLayout(self.modelLayout)
+        self.modelANDvalidateLayout.addLayout(self.validateLayout)
+
         self.make_model_list()
-        self.make_validate_button_list()
 
         validateWidget.setLayout(self.validateLayout)
         self.main_layout.addWidget(saWidget)
@@ -502,10 +507,8 @@ class MainWindow(QtWidgets.QWidget):
 
     def make_validate_button_list(self):
 
-        print(f"{self.project.selected_model=}")
-
-        for widget_no in range(6, self.validateLayout.count()):
-            self.validateLayout.itemAt(widget_no).widget().deleteLater()
+        for widget_no in range(1, self.validateLayout.count()):
+           self.validateLayout.itemAt(widget_no).widget().deleteLater()
 
         for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
 
@@ -681,7 +684,7 @@ class MainWindow(QtWidgets.QWidget):
         model_folders = [Path(model[0]) for model in self.project.models]
         model_names = [model_folder.name for model_folder in model_folders]
         self.combo_box.addItems(model_names)       
-        self.validateLayout.addWidget(self.combo_box,2,0,1,4)
+        self.modelLayout.addWidget(self.combo_box,2,0,1,4)
         new_model_index = self.combo_box.count() - 1
         self.combo_box.setCurrentIndex(new_model_index)
         self.update_retrained_name()
