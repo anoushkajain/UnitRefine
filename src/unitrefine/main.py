@@ -196,7 +196,7 @@ class MainWindow(QtWidgets.QWidget):
         labels_text = QtWidgets.QLabel("Labels: ")
         labels_text.setAlignment(Qt.AlignmentFlag.AlignRight) 
         projectLayout.addWidget(labels_text,2,0,1,1)
-        self.change_labels_button = QtWidgets.QLineEdit("good, SUA, MUA")
+        self.change_labels_button = QtWidgets.QLineEdit("noise, good, MUA")
         projectLayout.addWidget(self.change_labels_button,2,1,1,2)
 
         projectWidget.setLayout(projectLayout)
@@ -273,11 +273,9 @@ class MainWindow(QtWidgets.QWidget):
         self.validateLayout.addWidget(validateTitleWidget,0,0)
 
         trainTitleWidget = QtWidgets.QLabel("Choose your model:")
-        #trainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
         self.validateLayout.addWidget(trainTitleWidget,1,0,1,3)
 
         trainTitleWidget = QtWidgets.QLabel("And validate it on an analyzer:")
-        #trainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
         self.validateLayout.addWidget(trainTitleWidget,3,0,1,3)
 
         self.make_model_list()
@@ -504,7 +502,9 @@ class MainWindow(QtWidgets.QWidget):
 
     def make_validate_button_list(self):
 
-        for widget_no in range(5, self.validateLayout.count()):
+        print(f"{self.project.selected_model=}")
+
+        for widget_no in range(6, self.validateLayout.count()):
             self.validateLayout.itemAt(widget_no).widget().deleteLater()
 
         for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
@@ -518,7 +518,18 @@ class MainWindow(QtWidgets.QWidget):
 
             curate_button = QtWidgets.QPushButton(f'Validate "{selected_directory_text_display}"')
             curate_button.clicked.connect(partial(self.show_validate_window, analyzer, analyzer_index))
+
+            button_text = "---"
+            if self.project.selected_model is not None:
+                relabelled_units_path = self.project.folder_name / analyzer['analyzer_in_project'] / f"relabelled_units_{self.project.selected_model}.csv"
+                if relabelled_units_path.is_file():
+                    labels = pd.read_csv(relabelled_units_path)
+                    all_metrics = pd.read_csv(self.project.folder_name / analyzer['analyzer_in_project'] / "all_metrics.csv")
+                    button_text = f"{len(labels)}/{len(all_metrics)}"
+            
             self.validateLayout.addWidget(curate_button,4+analyzer_index,0,1,3)
+            self.validateLayout.addWidget(QtWidgets.QLabel(button_text),4+analyzer_index,3,1,1)
+
 
     def retrain_model(self):
 
@@ -670,7 +681,7 @@ class MainWindow(QtWidgets.QWidget):
         model_folders = [Path(model[0]) for model in self.project.models]
         model_names = [model_folder.name for model_folder in model_folders]
         self.combo_box.addItems(model_names)       
-        self.validateLayout.addWidget(self.combo_box,2,0,1,3)
+        self.validateLayout.addWidget(self.combo_box,2,0,1,4)
         new_model_index = self.combo_box.count() - 1
         self.combo_box.setCurrentIndex(new_model_index)
         self.update_retrained_name()
@@ -678,6 +689,8 @@ class MainWindow(QtWidgets.QWidget):
     def update_retrained_name(self):
         if self.retrainedModelNameForm is not None:
             self.retrainedModelNameForm.setText(f"{self.combo_box.currentText()}_retrained")
+        self.project.selected_model = self.combo_box.currentText()
+        self.make_validate_button_list()
 
     def show_validate_window(self, analyzer, analyzer_index):
 
