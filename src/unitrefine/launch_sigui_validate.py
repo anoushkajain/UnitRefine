@@ -17,8 +17,6 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
     This function will be called instead of the original closeEvent.
     """
 
-    print("I am inside the custom close handler")
-
     re_labelled_unit_ids = []
     re_labels = []
 
@@ -40,8 +38,22 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
 
     relabelled_units_path = save_folder / f"relabelled_units_{model_name}.csv"
 
-    print(f"I am saving the relabelled units at {relabelled_units_path}")
     labels_df.to_csv(relabelled_units_path, index=False)
+
+    all_metrics_path = save_folder / "all_metrics.csv"
+    if not all_metrics_path.is_file():
+        if analyzer.has_extension('template_metrics'):
+            tms = analyzer.get_extension("template_metrics").get_data()
+        else:
+            tms = pd.DataFrame()
+        
+        if analyzer.has_extension('quality_metrics'):
+            qms = analyzer.get_extension("quality_metrics").get_data()
+        else:
+            qms = pd.DataFrame()
+        
+        all_metrics = pd.concat([qms, tms], axis=1)
+        all_metrics.to_csv(all_metrics_path, index_label="unit_id")
 
 argv = sys.argv[1:]
 
@@ -66,6 +78,9 @@ hfh_or_local = args.hfh_or_local
 
 if '//' not in analyzer_folder:
     analyzer_folder = Path(analyzer_folder)
+
+print(f"{project_folder=}")
+print(f"{analyzer_in_project=}")
 
 save_folder = project_folder / analyzer_in_project
 save_folder.mkdir(exist_ok=True, parents=True)
@@ -118,7 +133,7 @@ layout_dict={'zone1': ['unitlist'], 'zone2': [], 'zone3': ['waveform'], 'zone4':
 print(f"\nLaunching SpikeInterface-GUI to validate automated curation for analyzer at {analyzer_folder}...")
 print("Re-label units as noise, good and MUA by pressing 'n', 'g' and 'm' on your keyboard.")
 
-model_name = model_folder.split('/')[-1]
+model_name = Path(model_folder).name
 
 app = mkQApp()
 win = QtMainWindow(controller, layout_dict=layout_dict, user_settings=None)
