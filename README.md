@@ -1,29 +1,20 @@
 # UnitRefine: A Community Toolbox for Automated Spike Sorting Curation  
 
-**UnitRefine** is a machine-learning-based toolbox designed to streamline spike sorting curation by reducing the need for manual intervention. 
-It integrates seamlessly with **SpikeInterface** and supports both **pre-trained models** and **custom model training**.
+**UnitRefine** is a machine-learning toolbox designed to streamline spike sorting curation by reducing the need for manual intervention.
+It integrates seamlessly with SpikeInterface and supports both pre-trained models and custom model training.
+UnitRefine is agnostic to probe type, species, brain region, and spike sorter, and includes a user-friendly GUI for curation, training, validation, and retraining. The GUI also supports active learning, allowing users to iteratively improve model performance through targeted relabeling
 
 ## Available Pre-trained Models
 
-UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3) across multiple datasets, probe types, and species:
+UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3)for Single-Unit-Activity (SUA) identification across multiple datasets, probe types, and species:
 
 | Dataset                      | Probe type                | n recordings | Spike sorter          | Species |
 |------------------------------|----------------------------|--------------|------------------------|---------|
 | Base dataset                 | Neuropixels 1.0            | 11           | Kilosort 2.5          | Mouse   |
 | rat recordings               | Neuropixels 2.0            | 4            | Kilosort 4            | rat   |
 | Mole rat recordings          | Neuropixels 2.0            | 4            | Kilosort 4            | Mole rat |
-| Nonhuman primate recordings  | Utah array                 | 11           | Kilosort 4            | Macaque |
+| Nonhuman primate recordings  | Utah array                 | 11           | Kilosort 4 (Xing Chen et al. 2022)| Macaque |
 | Human intracranial recordings| Behnke–Fried electrodes    | 12           | Combinato (Niediek et al., 2016) | Human |
-
-
-## Key Features
-
-- **Pre-trained models** for Single-Unit-Activity (SUA) identificaation. 
-- **Custom model training** using your own curated data  
-- **Full integration** with the SpikeInterface ecosystem  
-- **Model sharing** via the [Hugging Face Hub](https://huggingface.co/collections/SpikeInterface/curation-models-66ebf53d7f17088991062c2c)  
-- **Agnostic** to probe type, species, brain region, and spike sorter  
-- **User-friendly GUI** for training, validation, and curation  
 
 ---
 ## Citation
