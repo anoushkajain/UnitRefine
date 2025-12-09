@@ -2,7 +2,7 @@
 
 **UnitRefine** is a machine-learning toolbox designed to streamline spike sorting curation by reducing the need for manual intervention.
 It integrates seamlessly with SpikeInterface and supports both pre-trained models and custom model training.
-UnitRefine is agnostic to probe type, species, brain region, and spike sorter, and includes a user-friendly GUI for curation, training, validation, and retraining. The GUI also supports active learning, allowing users to iteratively improve model performance through targeted relabeling
+UnitRefine is agnostic to probe type, species, brain region, and spike sorter, and includes a user-friendly GUI for curation, training, validation, and retraining. The GUI also supports active learning, allowing users to iteratively improve model performance through targeted relabeling.
 
 ## Available Pre-trained Models
 
@@ -24,7 +24,7 @@ If you find **UnitRefine** useful in your research, please cite our preprint: ht
 
 ## Installation
 
-Simply install Spikeinterface to use UnitRefine in your existing workflows 
+Simply install Spikeinterface to use UnitRefine in your existing workflows. 
 
 ```bash
 pip install spikeinterface[full]
@@ -32,14 +32,14 @@ pip install spikeinterface[full]
 
 To use our GUI, [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.
 
-1. Clone this repository and move into the repo folder
+1. Clone this repository and move into the repo folder.
 
 ```bash
 git clone https://github.com/anoushkajain/UnitRefine.git
 cd UnitRefine
 ```
 
-2. Open unit_refine, creating a new project
+2. Open unit_refine, creating a new project.
 
 ```bash
 uv run unit_refine --project_folder my_new_project
@@ -49,7 +49,7 @@ Note: you must be in the UnitRefine folder that you've cloned from github when y
 A window should pop up that looks something like this:
 
 <p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/gui-image.JPG" width="800">
+  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/gui-image.JPG" width="500"/>
 </p>
 
 
