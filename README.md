@@ -1,45 +1,57 @@
 # UnitRefine: A Community Toolbox for Automated Spike Sorting Curation  
 
-**UnitRefine** is a machine-learning-based toolbox designed to streamline spike sorting curation by reducing the need for manual intervention.  
+**UnitRefine** is a machine-learning toolbox designed to streamline spike sorting curation by reducing the need for manual intervention.
+It integrates seamlessly with SpikeInterface and supports both pre-trained models and custom model training.
+UnitRefine is agnostic to probe type, species, brain region, and spike sorter, and includes a user-friendly GUI for curation, training, validation, and retraining. The GUI also supports active learning, allowing users to iteratively improve model performance through targeted relabeling
 
-With a focus on accessibility and broad community adoption, UnitRefine offers:  
-- Seamless integration with **SpikeInterface**.  
-- Pre-trained machine learning models for effortless application.  
-- The flexibility to train custom models using your own curated datasets and metrics.  
-- Easy sharing of trained models via **Hugging Face Hub**, fostering collaboration and reproducibility.
-- A manually curated dataset, labeled by 7 experts across 11 Neuropixels 1.0 recordings in mice, is also available.
-- Each recording was annotated by 2 to 5 people, with an agreement rate of 80% among the curators.
+## Available Pre-trained Models
 
-## Key Features  
-1. **Pre-trained Models**: Apply ready-to-use classifiers for noise removal and unit refinement.  
-2. **Custom Training**: Train models on your own data to meet specific experimental needs.  
-3. **Integration**: Fully integrated with SpikeInterface for a smooth user experience.  
-4. **Models**: Share or download models from the [Hugging Face Hub](https://huggingface.co/collections/SpikeInterface/curation-models-66ebf53d7f17088991062c2c), enabling community-driven advancements.
-5. **Agnostic** to probe type, species, brain region & spike sorter.
+UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3)for Single-Unit-Activity (SUA) identification across multiple datasets, probe types, and species:
 
-## 📌 Citation
+| Dataset                      | Probe type                | n recordings | Spike sorter          | Species |
+|------------------------------|----------------------------|--------------|------------------------|---------|
+| Base dataset                 | Neuropixels 1.0            | 11           | Kilosort 2.5          | Mouse   |
+| rat recordings               | Neuropixels 2.0            | 4            | Kilosort 4            | rat   |
+| Mole rat recordings          | Neuropixels 2.0            | 4            | Kilosort 4            | Mole rat |
+| Nonhuman primate recordings  | Utah array                 | 11           | Kilosort 4 (Xing Chen et al. 2022)| Macaque |
+| Human intracranial recordings| Behnke–Fried electrodes    | 12           | Combinato (Niediek et al., 2016) | Human |
+
+---
+## Citation
 
 If you find **UnitRefine** useful in your research, please cite our preprint: https://www.biorxiv.org/content/10.1101/2025.03.30.645770v1
 
 
 ## Installation
 
-To use this package, you can install it in two ways:
-
-### 1. Install with `pyproject.toml` to use UnitRefine 
-
-If you want to use **UnitRefine**, install the package using:
-
-```bash
-pip install .
-```
-### 2. Simply install Spikeinterface to use UnitRefine in your existing workflows 
+Simply install Spikeinterface to use UnitRefine in your existing workflows 
 
 ```bash
 pip install spikeinterface[full]
 ```
 
-More installation instructions can be found [here](https://spikeinterface.readthedocs.io/en/latest/get_started/installation.html).  
+To use our GUI, [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.
+
+1. Clone this repository and move into the repo folder
+
+```bash
+git clone https://github.com/anoushkajain/UnitRefine.git
+cd UnitRefine
+```
+
+2. Open unit_refine, creating a new project
+
+```bash
+uv run unit_refine --project_folder my_new_project
+``` 
+Note: you must be in the UnitRefine folder that you've cloned from github when you run this command.
+   
+A window should pop up that looks something like this:
+
+
+
+
+
 
 ### Tutorials  
 To get started with UnitRefine, refer to the automated curation tutorials available in the SpikeInterface documentation:  
@@ -49,14 +61,6 @@ Additionally, this repository includes **Jupyter Notebooks** in [section](https:
 1. Apply pre-trained models.  
 2. Train your own classifiers.   
 
-## Reference Scripts
-
-This repository contains two scripts, `model_based_curation.py` and `train_manual_curation.py`, that provide a detailed explanation of how certain features work when integrated with the [SpikeInterface](https://github.com/SpikeInterface) library. 
-
-### Important Notes:
-- These scripts **cannot be used independently**. They are designed for understanding the inner workings of SpikeInterface-related functionalities.
-- For seamless integration and practical use, please install and use the official [SpikeInterface repository](https://github.com/SpikeInterface).
-- These scripts rely on features already available in the SpikeInterface library.
 
 ## Acknowledgements
 
