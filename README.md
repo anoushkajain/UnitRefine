@@ -48,9 +48,9 @@ Note: you must be in the UnitRefine folder that you've cloned from github when y
    
 A window should pop up that looks something like this:
 
-
-
-
+<p align="center">
+  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/gui-image.JPG" width="800">
+</p>
 
 
 ### Tutorials  
