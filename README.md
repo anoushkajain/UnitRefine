@@ -10,7 +10,7 @@ UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3) a
 | Dataset                      | Probe type                | n recordings | Spike sorter          | Species |
 |------------------------------|----------------------------|--------------|------------------------|---------|
 | Base dataset                 | Neuropixels 1.0            | 11           | Kilosort 2.5          | Mouse   |
-| rat recordings               | Neuropixels 2.0            | 4            | Kilosort 4            | Mouse   |
+| rat recordings               | Neuropixels 2.0            | 4            | Kilosort 4            | rat   |
 | Mole rat recordings          | Neuropixels 2.0            | 4            | Kilosort 4            | Mole rat |
 | Nonhuman primate recordings  | Utah array                 | 11           | Kilosort 4            | Macaque |
 | Human intracranial recordings| Behnke–Fried electrodes    | 12           | Combinato (Niediek et al., 2016) | Human |
