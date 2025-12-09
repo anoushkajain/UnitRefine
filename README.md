@@ -6,7 +6,7 @@ UnitRefine is agnostic to probe type, species, brain region, and spike sorter, a
 
 ## Available Pre-trained Models
 
-UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3)for Single-Unit-Activity (SUA) identification across multiple datasets, probe types, and species:
+UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3) for Single-Unit-Activity (SUA) identification across multiple datasets, probe types, and species:
 
 | Dataset                      | Probe type                | n recordings | Spike sorter          | Species |
 |------------------------------|----------------------------|--------------|------------------------|---------|
@@ -45,13 +45,31 @@ cd UnitRefine
 uv run unit_refine --project_folder my_new_project
 ``` 
 Note: you must be in the UnitRefine folder that you've cloned from github when you run this command.
-   
+
 A window should pop up that looks something like this:
 
 <p align="center">
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/gui-image.JPG" width="500"/>
 </p>
 
+
+To try the GUI, you can need [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html), you can load an example Allen Institute dataset by selecting **Add Analyzer from S3** and pasting:
+
+```bash
+
+```
+
+Then load a pretrained model from the Hugging Face Hub (HFH):
+```bash
+SpikeInterface/UnitRefine_sua_mua_classifier
+```
+
+From here, it should be easy to add sorting analyzers, curate the data, train a model and validate your model. Keep an eye on the feedback that comes through the terminal - it will help! You can also generate code which you could use in a Python script.
+
+Whenever you curate something or make a model, whatever you've done is automatically saved in your project folder. Next time you run unit_refine, just point to your existing folder and it will load:
+```bash
+uv run unit_refine --project_folder my_existing_project
+```
 
 ### Tutorials  
 To get started with UnitRefine, refer to the automated curation tutorials available in the SpikeInterface documentation:  
@@ -64,7 +82,8 @@ Additionally, this repository includes **Jupyter Notebooks** in [section](https:
 
 ## Acknowledgements
 
-I would like to express my sincere gratitude to the following individuals for their invaluable contributions to this project:
+We would like to express my sincere gratitude to the following individuals for their invaluable contributions to this project:
+UnitRefine is highly dependent on the flexible and powerful SpikeInterface and Spikeinterface-GUI packages. Many thanks to Alessio, Sam, Zack, Joe who gave help and feedback to this project, and to the entire SpikeInterface team.
 
 - **Code Refactoring and Integration in SpikeInterface:**  
   Chris Halcrow, Jake Swann, Robyn Greene, Sangeetha Nandakumar (IBOTS)
