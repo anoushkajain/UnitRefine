@@ -24,22 +24,34 @@ If you find **UnitRefine** useful in your research, please cite our preprint: ht
 
 ## Installation
 
-To use this package, you can install it in two ways:
-
-### 1. Install with `pyproject.toml` to use UnitRefine 
-
-If you want to use **UnitRefine**, install the package using:
-
-```bash
-pip install .
-```
-### 2. Simply install Spikeinterface to use UnitRefine in your existing workflows 
+Simply install Spikeinterface to use UnitRefine in your existing workflows 
 
 ```bash
 pip install spikeinterface[full]
 ```
 
-More installation instructions can be found [here](https://spikeinterface.readthedocs.io/en/latest/get_started/installation.html).  
+To use our GUI, [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.
+
+1. Clone this repository and move into the repo folder
+
+```bash
+git clone https://github.com/anoushkajain/UnitRefine.git
+cd UnitRefine
+```
+
+2. Open unit_refine, creating a new project
+
+```bash
+uv run unit_refine --project_folder my_new_project
+``` 
+Note: you must be in the UnitRefine folder that you've cloned from github when you run this command.
+   
+A window should pop up that looks something like this:
+
+
+
+
+
 
 ### Tutorials  
 To get started with UnitRefine, refer to the automated curation tutorials available in the SpikeInterface documentation:  
@@ -49,14 +61,6 @@ Additionally, this repository includes **Jupyter Notebooks** in [section](https:
 1. Apply pre-trained models.  
 2. Train your own classifiers.   
 
-## Reference Scripts
-
-This repository contains two scripts, `model_based_curation.py` and `train_manual_curation.py`, that provide a detailed explanation of how certain features work when integrated with the [SpikeInterface](https://github.com/SpikeInterface) library. 
-
-### Important Notes:
-- These scripts **cannot be used independently**. They are designed for understanding the inner workings of SpikeInterface-related functionalities.
-- For seamless integration and practical use, please install and use the official [SpikeInterface repository](https://github.com/SpikeInterface).
-- These scripts rely on features already available in the SpikeInterface library.
 
 ## Acknowledgements
 
