@@ -42,7 +42,7 @@ cd UnitRefine
 2. Open unit_refine, creating a new project.
 
 ```bash
-uv run unit_refine --project_folder my_new_project
+uv run unitrefine --project_folder my_new_project
 ``` 
 Note: you must be in the UnitRefine folder that you've cloned from github when you run this command.
 
@@ -68,7 +68,7 @@ From here, it should be easy to add sorting analyzers, curate the data, train a 
 
 Whenever you curate something or make a model, whatever you've done is automatically saved in your project folder. Next time you run unit_refine, just point to your existing folder and it will load:
 ```bash
-uv run unit_refine --project_folder my_existing_project
+uv run unitrefine --project_folder my_existing_project
 ```
 
 ### Tutorials  
