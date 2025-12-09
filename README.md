@@ -1,8 +1,8 @@
 # UnitRefine: A Community Toolbox for Automated Spike Sorting Curation  
 
-**UnitRefine** is a machine-learning toolbox designed to streamline spike sorting curation by reducing the need for manual intervention.
+**UnitRefine** is a machine-learning toolbox designed to streamline spike sorting curation by reducing the need for manual intervention. 
 It integrates seamlessly with SpikeInterface and supports both pre-trained models and custom model training.
-UnitRefine is agnostic to probe type, species, brain region, and spike sorter, and includes a user-friendly GUI for curation, training, validation, and retraining. The GUI also supports active learning, allowing users to iteratively improve model performance through targeted relabeling.
+UnitRefine is agnostic to probe type, species, brain region, and spike sorter, and includes a user-friendly GUI (using [SpikeInterface-GUI](https://github.com/SpikeInterface/spikeinterface-gui/) as a backend) for curation, training, validation, and retraining. The GUI also supports active learning, allowing users to iteratively improve model performance through targeted relabeling.
 
 ## Available Pre-trained Models
 
