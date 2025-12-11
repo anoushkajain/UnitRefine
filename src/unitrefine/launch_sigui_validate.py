@@ -128,7 +128,7 @@ controller = Controller(
     skip_extensions=['waveforms', 'principal_components', 'spike_locations', 'isi_histograms', 'template_similarity'],
 )
 
-layout_dict={'zone1': ['unitlist'], 'zone2': [], 'zone3': ['waveform'], 'zone4': ['correlogram'], 'zone5': ['spikeamplitude'], 'zone6': [], 'zone7': [], 'zone8': ['spikerate']}
+layout_dict={'zone1': ['unitlist', 'mainsettings'], 'zone2': [], 'zone3': ['waveform'], 'zone4': ['correlogram'], 'zone5': ['spikeamplitude'], 'zone6': [], 'zone7': [], 'zone8': ['spikerate']}
 
 print(f"\nLaunching SpikeInterface-GUI to validate automated curation for analyzer at {analyzer_folder}...")
 print("Re-label units as noise, good and MUA by pressing 'n', 'g' and 'm' on your keyboard.")

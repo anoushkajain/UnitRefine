@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 from functools import partial
 from pathlib import Path
 import shutil
+import os
 
 from huggingface_hub import repo_exists
 from modAL.models import ActiveLearner
@@ -126,8 +127,7 @@ def load_project(folder_name):
 
         with open(analyzer_folder / 'path.txt') as f:
             analyzer_path = f.read()
-
-        analyzer_dict['path'] = analyzer_path
+            analyzer_dict['path'] = analyzer_path
 
         metrics_path = analyzer_folder / 'all_metrics.csv'
         if metrics_path.is_file():
@@ -459,7 +459,7 @@ class MainWindow(QtWidgets.QWidget):
         for widget_no in range(3, self.saLayout.count()):
             self.saLayout.itemAt(widget_no).widget().deleteLater()
 
-        for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
+        for analyzer_index, analyzer in self.project.analyzers.items():
 
             selected_directory = analyzer['path']
 
@@ -484,7 +484,7 @@ class MainWindow(QtWidgets.QWidget):
             curation_output_folder = Path(self.project.folder_name) / Path(f"analyzers/analyzer_{analyzer_index}")
             curation_output_folder.mkdir(exist_ok=True)
 
-            if (curation_output_folder / "all_metrics.csv").is_file():
+            if (curation_output_folder / "all_metrics.csv").is_file() and (curation_output_folder / "labels.csv").is_file():
                 just_labels = pd.read_csv(curation_output_folder / "labels.csv")
                 all_metrics = pd.read_csv(curation_output_folder / "all_metrics.csv")
                 not_curated_text = QtWidgets.QLabel(f"{len(just_labels)}/{len(all_metrics)}")
@@ -500,6 +500,7 @@ class MainWindow(QtWidgets.QWidget):
 
         analyzer_folder = Path(self.project.folder_name) / Path(self.project.analyzers[analyzer_indices[analyzer_index]]['analyzer_in_project'])
         shutil.rmtree(str(analyzer_folder))
+        os.rmdir(str(analyzer_folder))
 
         self.project.analyzers.pop(analyzer_indices[analyzer_index])
 
@@ -579,7 +580,11 @@ class MainWindow(QtWidgets.QWidget):
             folder_name = self.project.folder_name
             save_path = Path(folder_name / "analyzers" / f"analyzer_{analyzer_name}")
 
-            relabelled_units = pd.read_csv(save_path / f"relabelled_units_{self.project.selected_model.name}.csv")
+            relabelled_units_path = save_path / f"relabelled_units_{self.project.selected_model.name}.csv"
+            if relabelled_units_path.is_file():
+                relabelled_units = pd.read_csv(save_path / f"relabelled_units_{self.project.selected_model.name}.csv")
+            else:
+                relabelled_units = pd.DataFrame(columns=['quality', 'unit_id'])
             all_metrics_path = save_path / "all_metrics.csv"
             if all_metrics_path.is_file():
                 all_metrics = pd.read_csv(all_metrics_path)
