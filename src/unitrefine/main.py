@@ -164,6 +164,8 @@ class MainWindow(QtWidgets.QWidget):
     def __init__(self, project):
         
         super().__init__()
+
+        self.setStyleSheet("background-color: white")
         
         self.w = None
         self.sorting_analyzer_paths = []
@@ -309,7 +311,7 @@ class MainWindow(QtWidgets.QWidget):
 
         current_model_name = self.combo_box.currentText()
         self.retrainedModelNameForm = QtWidgets.QLineEdit(f"{current_model_name}_retrained")
-        self.retrainedModelNameForm.setStyleSheet("background-color: white")
+        self.retrainedModelNameForm.setStyleSheet("background-color: white; color: black;")
         self.retrainLayout.addWidget(self.retrainedModelNameForm,1,1,1,1)
 
         retrain_button = QtWidgets.QPushButton('Retrain model')
@@ -733,6 +735,7 @@ def main():
 
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle(QStyleFactory.create("Fusion"))
+    app.setStyleSheet("* { color: black; }")
     icon_file = Path(__file__).absolute().parent / 'resources' / 'logo.png'
     if icon_file.exists():
         app.setWindowIcon(QIcon(str(icon_file)))
