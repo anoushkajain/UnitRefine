@@ -1,7 +1,7 @@
 # UnitRefine: A Community Toolbox for Automated Spike Sorting Curation  
 
 **UnitRefine** is a machine-learning toolbox designed to streamline spike sorting curation by reducing the need for manual intervention. 
-It integrates seamlessly with SpikeInterface and supports both pre-trained models and custom model training.
+It integrates seamlessly with [SpikeInterface](https://github.com/SpikeInterface/spikeinterface) and supports both pre-trained models and custom model training.
 UnitRefine is agnostic to probe type, species, brain region, and spike sorter, and includes a user-friendly GUI (using [SpikeInterface-GUI](https://github.com/SpikeInterface/spikeinterface-gui/) as a backend) for curation, training, validation, and retraining. The GUI also supports active learning, allowing users to iteratively improve model performance through targeted relabeling.
 
 ## Available Pre-trained Models
@@ -15,11 +15,6 @@ UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3) f
 | Mole rat recordings          | Neuropixels 2.0            | 4            | Kilosort 4            | Mole rat |
 | Nonhuman primate recordings  | Utah array                 | 11           | Kilosort 4 (Xing Chen et al. 2022)| Macaque |
 | Human intracranial recordings| Behnke–Fried electrodes    | 12           | Combinato (Niediek et al., 2016) | Human |
-
----
-## Citation
-
-If you find **UnitRefine** useful in your research, please cite our preprint: https://www.biorxiv.org/content/10.1101/2025.03.30.645770v1
 
 
 ## Installation
@@ -53,7 +48,9 @@ A window should pop up that looks something like this:
 </p>
 
 
-To try the GUI, you can need [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html), you can load an example Allen Institute dataset by selecting **Add Analyzer from S3** and pasting:
+To try the GUI, you need [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html), you can load an example Allen Institute dataset by selecting **Add Analyzer from S3** and pasting:
+To try the GUI, you first need a [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html).
+You can load an example Allen Institute dataset by selecting Add Analyzer from S3 and pasting the following:
 
 ```bash
 
@@ -64,7 +61,7 @@ Then load a pretrained model from the Hugging Face Hub (HFH):
 SpikeInterface/UnitRefine_sua_mua_classifier
 ```
 
-From here, it should be easy to add sorting analyzers, curate the data, train a model and validate your model. Keep an eye on the feedback that comes through the terminal - it will help! You can also generate code which you could use in a Python script.
+From here, it should be easy to add sorting analyzers, curate the data, train a model and validate your model. Keep an eye on the feedback that comes through the terminal - it will help! You can also generate code which you could use in a Python script. Here is a flow chart to show the functionalities of the GUI
 
 Whenever you curate something or make a model, whatever you've done is automatically saved in your project folder. Next time you run unit_refine, just point to your existing folder and it will load:
 ```bash
@@ -78,6 +75,12 @@ To get started with UnitRefine, refer to the automated curation tutorials availa
 Additionally, this repository includes **Jupyter Notebooks** in [section](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial) with detailed step-by-step tutorials on how to:  
 1. Apply pre-trained models.  
 2. Train your own classifiers.   
+
+---
+## Citation
+
+If you find **UnitRefine** useful in your research, please cite our preprint: https://www.biorxiv.org/content/10.1101/2025.03.30.645770v1
+
 
 
 ## Acknowledgements
