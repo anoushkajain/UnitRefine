@@ -7,6 +7,10 @@ from pathlib import Path
 import shutil
 import os
 
+import warnings
+warnings.filterwarnings("ignore")
+
+
 from huggingface_hub import repo_exists
 from modAL.models import ActiveLearner
 from modAL.uncertainty import uncertainty_sampling
@@ -240,71 +244,58 @@ class MainWindow(QtWidgets.QWidget):
 
         trainWidget = QtWidgets.QWidget()
         trainWidget.setStyleSheet("background-color: PeachPuff")
-
+        self.validateLayout = QtWidgets.QGridLayout()
         self.trainLayout = QtWidgets.QGridLayout()
 
         trainTitleWidget = QtWidgets.QLabel("3. TRAIN or LOAD models")
         trainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        self.trainLayout.addWidget(trainTitleWidget,0,0)
+        self.trainLayout.addWidget(trainTitleWidget, 0, 0)
 
         train_button = QtWidgets.QPushButton("Train")
         train_button.clicked.connect(self.show_train_window)
-        self.trainLayout.addWidget(train_button,1,0,1,2)
+        self.trainLayout.addWidget(train_button, 1, 0, 1, 2)
 
         load_model_button = QtWidgets.QPushButton("+ Load")
         load_model_button.clicked.connect(self.selectModelDialog)
-        self.trainLayout.addWidget(load_model_button,1,2,1,1)
+        self.trainLayout.addWidget(load_model_button, 1, 2, 1, 1)
 
         load_model_hf = QtWidgets.QPushButton("+ Load from HFH")
         load_model_hf.clicked.connect(self.add_from_hfh)
-        self.trainLayout.addWidget(load_model_hf,1,3,1,1)
+        self.trainLayout.addWidget(load_model_hf, 1, 3, 1, 1)
 
-        trainWidget.setLayout(self.trainLayout)
+        trainTitleWidget2 = QtWidgets.QLabel("After training or loading, choose your model:")
+        self.trainLayout.addWidget(trainTitleWidget2, 2, 0, 1, 3)
 
-        ###############
-        # VALIDATE
-        ##############
+        validateTitleWidget = QtWidgets.QLabel("And inspect its predictions on an analyzer:")
+        self.validateLayout.addWidget(validateTitleWidget, 0, 0, 1, 3 )
 
-        validateWidget = QtWidgets.QWidget()
-        validateWidget.setStyleSheet("background-color: Pink")
 
-        self.modelANDvalidateLayout = QtWidgets.QVBoxLayout(validateWidget)
-        self.modelLayout = QtWidgets.QGridLayout()
-
-        validateTitleWidget = QtWidgets.QLabel("4. VALIDATE AND REFINE")
-        validateTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        self.modelLayout.addWidget(validateTitleWidget,0,0)
-
-        trainTitleWidget = QtWidgets.QLabel("Choose your model:")
-        self.modelLayout.addWidget(trainTitleWidget,1,0,1,3)
-
-        self.validateLayout = QtWidgets.QGridLayout()
-
-        trainTitleWidget = QtWidgets.QLabel("And validate it on an analyzer:")
-        self.validateLayout.addWidget(trainTitleWidget,3,0,1,3)
-
-        self.modelANDvalidateLayout.addLayout(self.modelLayout)
-        self.modelANDvalidateLayout.addLayout(self.validateLayout)
+        self.trainANDvalidateLayout = QtWidgets.QVBoxLayout(trainWidget)
+        self.trainANDvalidateLayout.addLayout(self.trainLayout)
+        self.trainANDvalidateLayout.addLayout(self.validateLayout)
 
         self.make_model_list()
 
-        validateWidget.setLayout(self.validateLayout)
+        self.modelLayout = QtWidgets.QGridLayout()
+
         self.main_layout.addWidget(saWidget)
         self.main_layout.addWidget(trainWidget)
-        self.main_layout.addWidget(validateWidget)
 
         #################
         # RETRAIN WIDGET
         ##################
 
         retrainWidget = QtWidgets.QWidget()
-        retrainWidget.setStyleSheet("background-color: LightYellow")
+        retrainWidget.setStyleSheet("background-color: Pink")
 
         self.retrainLayout = QtWidgets.QGridLayout()
+        self.relabelLayout = QtWidgets.QGridLayout()
 
-        retrainTitleWidget = QtWidgets.QLabel("5. RE-TRAIN")
+        retrainTitleWidget = QtWidgets.QLabel("4. RELABEL, REFINE, RETRAIN")
         retrainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        self.retrainLayout.addWidget(retrainTitleWidget,0,0,1,2)
+        self.relabelLayout.addWidget(retrainTitleWidget,0,0,1,2)
+        self.relabelLayout.addWidget(QtWidgets.QLabel("Relabel uncertain units from each analyzer..."),1,0,1,1)
+
 
         retrain_text = QtWidgets.QLabel("Retrained model name: ")
         self.retrainLayout.addWidget(retrain_text,1,0,1,1)
@@ -318,12 +309,17 @@ class MainWindow(QtWidgets.QWidget):
         retrain_button.clicked.connect(partial(self.retrain_model))
         self.retrainLayout.addWidget(retrain_button,2,0,1,2)
 
-        retrainWidget.setLayout(self.retrainLayout)
+        #retrainWidget.setLayout(self.retrainLayout)
+
+        self.relabelANDvalidateLayout = QtWidgets.QVBoxLayout(retrainWidget)
+        self.relabelANDvalidateLayout.addLayout(self.relabelLayout)
+        self.relabelANDvalidateLayout.addLayout(self.retrainLayout)
+
+        self.make_relabel_button_list()
 
 
         self.main_layout.addWidget(saWidget)
         self.main_layout.addWidget(trainWidget)
-        self.main_layout.addWidget(validateWidget)
         self.main_layout.addWidget(retrainWidget)
 
 
@@ -434,7 +430,7 @@ class MainWindow(QtWidgets.QWidget):
                 self.project.save()
 
                 self.make_curation_button_list()
-                self.make_validate_button_list()
+                self.make_model_list()
 
             else:
                 print(f"Selected directory {selected_directory} is not a SortingAnalyzer.")
@@ -449,11 +445,13 @@ class MainWindow(QtWidgets.QWidget):
             selected_directory = file_dialog.selectedFiles()[0]
 
             if is_a_model(selected_directory):
-                self.project.models = [(selected_directory, "local")] + self.project.models
+                self.project.models = self.project.models + [(selected_directory, "local")]
                 self.make_model_list()
             else:
                 print(f"{selected_directory} is not a UnitRefine model folder.")
             
+
+
     def make_curation_button_list(self):
 
         for widget_no in range(3, self.saLayout.count()):
@@ -500,12 +498,33 @@ class MainWindow(QtWidgets.QWidget):
 
         analyzer_folder = Path(self.project.folder_name) / Path(self.project.analyzers[analyzer_indices[analyzer_index]]['analyzer_in_project'])
         shutil.rmtree(str(analyzer_folder))
-        os.rmdir(str(analyzer_folder))
+        if analyzer_folder.is_dir():
+            os.rmdir(str(analyzer_folder))
 
         self.project.analyzers.pop(analyzer_indices[analyzer_index])
 
         self.make_curation_button_list()
         self.make_validate_button_list()
+        self.make_relabel_button_list()
+
+    def make_relabel_button_list(self):
+
+        for widget_no in range(1, self.relabelLayout.count()):
+            self.relabelLayout.itemAt(widget_no).widget().deleteLater()
+
+        for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
+
+            selected_directory = analyzer['path']
+
+            if len(str(selected_directory)) > 40:
+               selected_directory_text_display = "..." + str(selected_directory)[-40:]
+            else:
+                selected_directory_text_display = selected_directory
+
+            curate_button = QtWidgets.QPushButton(f'Relabel "{selected_directory_text_display}"')
+            curate_button.clicked.connect(partial(self.show_validate_window, analyzer, analyzer_index, True))
+
+            self.relabelLayout.addWidget(curate_button,1+analyzer_index,0,1,3)
 
 
     def make_validate_button_list(self):
@@ -522,20 +541,20 @@ class MainWindow(QtWidgets.QWidget):
             else:
                 selected_directory_text_display = selected_directory
 
-            curate_button = QtWidgets.QPushButton(f'Validate "{selected_directory_text_display}"')
-            curate_button.clicked.connect(partial(self.show_validate_window, analyzer, analyzer_index))
+            curate_button = QtWidgets.QPushButton(f'Inspect "{selected_directory_text_display}"')
+            curate_button.clicked.connect(partial(self.show_validate_window, analyzer, analyzer_index, False))
 
-            button_text = "---"
-            if self.project.selected_model is not None:
-                relabelled_units_path = self.project.folder_name / analyzer['analyzer_in_project'] / f"relabelled_units_{self.project.selected_model}.csv"                    
-                all_metrics_path = self.project.folder_name / analyzer['analyzer_in_project'] / "all_metrics.csv"                    
-                if all_metrics_path.is_file() and relabelled_units_path.is_file():
-                    all_metrics = pd.read_csv(all_metrics_path)
-                    labels = pd.read_csv(relabelled_units_path)
-                    button_text = f"{len(labels)}/{len(all_metrics)}"
+            # code to check how many units have been relabelled...
+            # button_text = "---"
+            # if self.project.selected_model is not None:
+            #     relabelled_units_path = self.project.folder_name / analyzer['analyzer_in_project'] / f"relabelled_units_{self.project.selected_model}.csv"                    
+            #     all_metrics_path = self.project.folder_name / analyzer['analyzer_in_project'] / "all_metrics.csv"                    
+            #     if all_metrics_path.is_file() and relabelled_units_path.is_file():
+            #         all_metrics = pd.read_csv(all_metrics_path)
+            #         labels = pd.read_csv(relabelled_units_path)
+            #         button_text = f"{len(labels)}/{len(all_metrics)}"
             
-            self.validateLayout.addWidget(curate_button,4+analyzer_index,0,1,3)
-            self.validateLayout.addWidget(QtWidgets.QLabel(button_text),4+analyzer_index,3,1,1)
+            self.validateLayout.addWidget(curate_button,1+analyzer_index,0,1,3)
 
 
     def retrain_model(self):
@@ -692,7 +711,7 @@ class MainWindow(QtWidgets.QWidget):
         model_folders = [Path(model[0]) for model in self.project.models]
         model_names = [model_folder.name for model_folder in model_folders]
         self.combo_box.addItems(model_names)       
-        self.modelLayout.addWidget(self.combo_box,2,0,1,4)
+        self.trainLayout.addWidget(self.combo_box,3,0,1,4)
         new_model_index = self.combo_box.count() - 1
         self.combo_box.setCurrentIndex(new_model_index)
         self.update_retrained_name()
@@ -703,7 +722,7 @@ class MainWindow(QtWidgets.QWidget):
         self.project.selected_model = self.combo_box.currentText()
         self.make_validate_button_list()
 
-    def show_validate_window(self, analyzer, analyzer_index):
+    def show_validate_window(self, analyzer, analyzer_index, relabel=False):
 
         analyzer_path = analyzer['path']
         
@@ -713,7 +732,7 @@ class MainWindow(QtWidgets.QWidget):
         analyzer_in_project = analyzer['analyzer_in_project']
 
         validate_filepath = Path(__file__).absolute().parent / "launch_sigui_validate.py"
-        subprocess.run([sys.executable, validate_filepath, str(analyzer_path), str(self.output_folder), str(analyzer_in_project), str(analyzer_index), self.project.selected_model, current_model_name, hfh_or_local])
+        subprocess.run([sys.executable, validate_filepath, str(analyzer_path), str(self.output_folder), str(analyzer_in_project), str(analyzer_index), self.project.selected_model, current_model_name, hfh_or_local, str(relabel)])
         print("SpikeInterface-GUI closed, resuming main app.")
 
 def main():

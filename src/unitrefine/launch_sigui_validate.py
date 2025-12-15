@@ -11,6 +11,10 @@ from pyqtgraph import mkQApp
 from spikeinterface_gui.backend_qt import QtMainWindow
 from spikeinterface_gui.controller import Controller
 from spikeinterface.curation import auto_label_units
+import numpy as np
+
+import warnings
+warnings.filterwarnings("ignore")
 
 def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder, save_folder, analyzer, model_name):
     """
@@ -65,6 +69,7 @@ parser.add_argument('analyzer_index', help='Project folder path', default=None, 
 parser.add_argument('model_folder')
 parser.add_argument('current_model_name')
 parser.add_argument('hfh_or_local')
+parser.add_argument('relabel')
 
 args = parser.parse_args(argv)
 
@@ -75,19 +80,17 @@ analyzer_folder = args.analyzer_folder
 model_folder = args.model_folder
 current_model_name = args.current_model_name
 hfh_or_local = args.hfh_or_local
+relabel = True if args.relabel == "True" else False 
 
 if '//' not in analyzer_folder:
     analyzer_folder = Path(analyzer_folder)
 
-print(f"{project_folder=}")
-print(f"{analyzer_in_project=}")
-
 save_folder = project_folder / analyzer_in_project
 save_folder.mkdir(exist_ok=True, parents=True)
 
-sorting_analyzer = si.load_sorting_analyzer(analyzer_folder, load_extensions=False)
+sorting_analyzer = si.load_sorting_analyzer(analyzer_folder)#, load_extensions=False)
 
-print("\nUsing UnitRefine to label the units in your analyzer...\n")
+print("\nUsing UnitRefine to compute predictions made by your model.\n")
 
 model_decisions = auto_label_units(sorting_analyzer=sorting_analyzer, model_folder=model_folder, trust_model=True)
 
@@ -111,6 +114,25 @@ label_definitions = {
 
 extra_unit_properties = {'confidence': model_decisions['probability'].values}
 
+if relabel == True:
+    
+    probability = model_decisions['probability'].values
+    num_units_to_keep = int(len(probability) * 0.2)
+    least_confident_indices = np.argpartition(probability, num_units_to_keep)[:num_units_to_keep]
+    least_confident_unit_ids = sorting_analyzer.unit_ids[least_confident_indices]
+    sorting_analyzer = sorting_analyzer.select_units(unit_ids=least_confident_unit_ids)
+    print(f"{sorting_analyzer=}")
+    extra_unit_properties['confidence'] = probability[least_confident_indices]
+    
+    manual_labels = []
+    for unit_id in sorting_analyzer.unit_ids:
+        decision = {"unit_id": unit_id, 
+                    "model": model_decisions[model_decisions['unit_id'] == unit_id]['prediction'].values,
+                    }
+        if len(decision['model']) > 0:
+            manual_labels.append(decision)
+    
+
 curation_dict = dict(
     format_version="2",
     unit_ids=sorting_analyzer.unit_ids,
@@ -130,7 +152,12 @@ controller = Controller(
 
 layout_dict={'zone1': ['unitlist', 'mainsettings'], 'zone2': [], 'zone3': ['waveform'], 'zone4': ['correlogram'], 'zone5': ['spikeamplitude'], 'zone6': [], 'zone7': [], 'zone8': ['spikerate']}
 
-print(f"\nLaunching SpikeInterface-GUI to validate automated curation for analyzer at {analyzer_folder}...")
+if relabel:
+    print(f"\nLaunching SpikeInterface-GUI to inspect automated curation for analyzer at {analyzer_folder}")
+else:
+    print(f"\nLaunching SpikeInterface-GUI to relabel model predictions for analyzer at {analyzer_folder}")
+
+print("Main UnitRefine window will remain inactive until you close the SpikeInterface-GUI window")
 print("Re-label units as noise, good and MUA by pressing 'n', 'g' and 'm' on your keyboard.")
 
 model_name = Path(model_folder).name

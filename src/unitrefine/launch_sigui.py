@@ -11,6 +11,9 @@ from pyqtgraph import mkQApp
 from spikeinterface_gui.backend_qt import QtMainWindow
 from spikeinterface_gui.controller import Controller
 
+import warnings
+warnings.filterwarnings("ignore")
+
 
 def my_custom_close_handler(event: QCloseEvent, window: QWidget, save_folder, analyzer):
     """
