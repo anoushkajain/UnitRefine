@@ -16,7 +16,7 @@ dependencies = [
     "pyqtgraph>=0.13.7",
     "spikeinterface",
     "pyyaml>=6.0.2",
-    "scikit-learn>=1.6.1",
+    "scikit-learn==1.8",
     "skops>=0.11.0",
     "huggingface-hub>=0.35.0",
     "spikeinterface-gui",
