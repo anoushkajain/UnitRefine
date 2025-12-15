@@ -10,7 +10,6 @@ import os
 import warnings
 warnings.filterwarnings("ignore")
 
-
 from huggingface_hub import repo_exists
 from modAL.models import ActiveLearner
 from modAL.uncertainty import uncertainty_sampling
@@ -291,11 +290,18 @@ class MainWindow(QtWidgets.QWidget):
         self.retrainLayout = QtWidgets.QGridLayout()
         self.relabelLayout = QtWidgets.QGridLayout()
 
-        retrainTitleWidget = QtWidgets.QLabel("4. RELABEL, REFINE, RETRAIN")
+        retrainTitleWidget = QtWidgets.QLabel("4. RELABEL and RETRAIN")
         retrainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
         self.relabelLayout.addWidget(retrainTitleWidget,0,0,1,2)
-        self.relabelLayout.addWidget(QtWidgets.QLabel("Relabel uncertain units from each analyzer..."),1,0,1,1)
+        self.relabelLayout.addWidget(QtWidgets.QLabel("Relabel uncertain units from each analyzer..."),2,0,1,1)
 
+        
+        self.percentageOfUnitsForm = QtWidgets.QLineEdit("20")
+        self.percentageOfUnitsForm.setStyleSheet("background-color: white;")
+        self.unitLabel = QtWidgets.QLabel("Percentage of least confident units to display:")
+        
+        self.relabelLayout.addWidget(self.percentageOfUnitsForm,1,1,1,1)
+        self.relabelLayout.addWidget(self.unitLabel,1,0,1,1)
 
         retrain_text = QtWidgets.QLabel("Retrained model name: ")
         self.retrainLayout.addWidget(retrain_text,1,0,1,1)
@@ -309,14 +315,11 @@ class MainWindow(QtWidgets.QWidget):
         retrain_button.clicked.connect(partial(self.retrain_model))
         self.retrainLayout.addWidget(retrain_button,2,0,1,2)
 
-        #retrainWidget.setLayout(self.retrainLayout)
-
         self.relabelANDvalidateLayout = QtWidgets.QVBoxLayout(retrainWidget)
         self.relabelANDvalidateLayout.addLayout(self.relabelLayout)
         self.relabelANDvalidateLayout.addLayout(self.retrainLayout)
 
         self.make_relabel_button_list()
-
 
         self.main_layout.addWidget(saWidget)
         self.main_layout.addWidget(trainWidget)
@@ -431,6 +434,7 @@ class MainWindow(QtWidgets.QWidget):
 
                 self.make_curation_button_list()
                 self.make_model_list()
+                self.make_relabel_button_list()
 
             else:
                 print(f"Selected directory {selected_directory} is not a SortingAnalyzer.")
@@ -450,8 +454,6 @@ class MainWindow(QtWidgets.QWidget):
             else:
                 print(f"{selected_directory} is not a UnitRefine model folder.")
             
-
-
     def make_curation_button_list(self):
 
         for widget_no in range(3, self.saLayout.count()):
@@ -509,7 +511,7 @@ class MainWindow(QtWidgets.QWidget):
 
     def make_relabel_button_list(self):
 
-        for widget_no in range(1, self.relabelLayout.count()):
+        for widget_no in range(4, self.relabelLayout.count()):
             self.relabelLayout.itemAt(widget_no).widget().deleteLater()
 
         for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
@@ -524,7 +526,7 @@ class MainWindow(QtWidgets.QWidget):
             curate_button = QtWidgets.QPushButton(f'Relabel "{selected_directory_text_display}"')
             curate_button.clicked.connect(partial(self.show_validate_window, analyzer, analyzer_index, True))
 
-            self.relabelLayout.addWidget(curate_button,1+analyzer_index,0,1,3)
+            self.relabelLayout.addWidget(curate_button,3+analyzer_index,0,1,3)
 
 
     def make_validate_button_list(self):
@@ -724,6 +726,19 @@ class MainWindow(QtWidgets.QWidget):
 
     def show_validate_window(self, analyzer, analyzer_index, relabel=False):
 
+        percentage_text = self.percentageOfUnitsForm.text()
+        try:
+            percentage_float = float(percentage_text)
+            if percentage_float < 1:
+                print("Percentage of units displayed should be larger than 1. Please change the value.")
+                return
+            if percentage_float > 100:
+                print("Percentage of units displayed should be smaller than 100.  Please change the value.")
+                return 
+        except:
+            print("Cannot parse percentage value. Must be a number. Please change the value.")
+            return
+
         analyzer_path = analyzer['path']
         
         current_model_name = self.combo_box.currentText()
@@ -732,7 +747,7 @@ class MainWindow(QtWidgets.QWidget):
         analyzer_in_project = analyzer['analyzer_in_project']
 
         validate_filepath = Path(__file__).absolute().parent / "launch_sigui_validate.py"
-        subprocess.run([sys.executable, validate_filepath, str(analyzer_path), str(self.output_folder), str(analyzer_in_project), str(analyzer_index), self.project.selected_model, current_model_name, hfh_or_local, str(relabel)])
+        subprocess.run([sys.executable, validate_filepath, str(analyzer_path), str(self.output_folder), str(analyzer_in_project), str(analyzer_index), self.project.selected_model, current_model_name, hfh_or_local, str(relabel), str(percentage_float)])
         print("SpikeInterface-GUI closed, resuming main app.")
 
 def main():

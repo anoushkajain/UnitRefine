@@ -70,6 +70,8 @@ parser.add_argument('model_folder')
 parser.add_argument('current_model_name')
 parser.add_argument('hfh_or_local')
 parser.add_argument('relabel')
+parser.add_argument('percentage_float')
+
 
 args = parser.parse_args(argv)
 
@@ -81,6 +83,7 @@ model_folder = args.model_folder
 current_model_name = args.current_model_name
 hfh_or_local = args.hfh_or_local
 relabel = True if args.relabel == "True" else False 
+percentage_float = float(args.percentage_float)
 
 if '//' not in analyzer_folder:
     analyzer_folder = Path(analyzer_folder)
@@ -114,14 +117,13 @@ label_definitions = {
 
 extra_unit_properties = {'confidence': model_decisions['probability'].values}
 
-if relabel == True:
+if relabel:
     
     probability = model_decisions['probability'].values
-    num_units_to_keep = int(len(probability) * 0.2)
+    num_units_to_keep = int(len(probability) * percentage_float/100)
     least_confident_indices = np.argpartition(probability, num_units_to_keep)[:num_units_to_keep]
     least_confident_unit_ids = sorting_analyzer.unit_ids[least_confident_indices]
     sorting_analyzer = sorting_analyzer.select_units(unit_ids=least_confident_unit_ids)
-    print(f"{sorting_analyzer=}")
     extra_unit_properties['confidence'] = probability[least_confident_indices]
     
     manual_labels = []
