@@ -1,14 +1,15 @@
 import json
 import subprocess
 import sys
-from argparse import ArgumentParser
-from functools import partial
-from pathlib import Path
 import shutil
 import os
 
-import warnings
-warnings.filterwarnings("ignore")
+from pathlib import Path
+from argparse import ArgumentParser
+from functools import partial
+
+import numpy as np
+import pandas as pd
 
 from huggingface_hub import repo_exists
 from modAL.models import ActiveLearner
@@ -16,16 +17,19 @@ from modAL.uncertainty import uncertainty_sampling
 from spikeinterface.curation.model_based_curation import load_model
 from skops.io import dump
 
-import numpy as np
-import pandas as pd
 import PyQt5.QtWidgets as QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtWidgets import QStyleFactory
-from unitrefine.train import TrainWindow
+
 from spikeinterface_gui.main import check_folder_is_analyzer
 from spikeinterface.core.core_tools import is_path_remote
 from spikeinterface.core import load_sorting_analyzer
+
+from unitrefine.train import TrainWindow
+
+import warnings
+warnings.filterwarnings("ignore")
 
 class UrlInputDialog(QtWidgets.QDialog):
     def __init__(self, parent=None, default=None, background_color=None):
@@ -70,7 +74,7 @@ class UnitRefineProject:
 
         self.folder_name = folder_name
         self.analyzers = {}
-        self.models = []
+        self.model_paths = []
         self.config = {}
         self.selected_model = None
 
@@ -156,9 +160,9 @@ def load_project(folder_name):
 
     for model_folder in model_folders:
         if (model_folder / "hfh_path.txt").is_file():
-            project.models.append((model_folder, "hfh"))
+            project.model_paths.append((model_folder, "hfh"))
         else:
-            project.models.append((model_folder, "local"))
+            project.model_paths.append((model_folder, "local"))
 
     return project
 
@@ -178,6 +182,7 @@ class MainWindow(QtWidgets.QWidget):
         self.output_folder = project.folder_name
 
         self.project = project
+        self.percentage_float = 20
 
         self.main_layout = QtWidgets.QGridLayout(self)
         self.retrainedModelNameForm = None
@@ -296,8 +301,9 @@ class MainWindow(QtWidgets.QWidget):
         self.relabelLayout.addWidget(QtWidgets.QLabel("Relabel uncertain units from each analyzer..."),2,0,1,1)
 
         
-        self.percentageOfUnitsForm = QtWidgets.QLineEdit("20")
+        self.percentageOfUnitsForm = QtWidgets.QLineEdit(f"{self.percentage_float}")
         self.percentageOfUnitsForm.setStyleSheet("background-color: white;")
+        self.percentageOfUnitsForm.textChanged.connect(self.update_percentage_float)
         self.unitLabel = QtWidgets.QLabel("Percentage of least confident units to display:")
         
         self.relabelLayout.addWidget(self.percentageOfUnitsForm,1,1,1,1)
@@ -348,6 +354,24 @@ class MainWindow(QtWidgets.QWidget):
             else:
                 print(f"url {url} is not a valid analyzer path.")
 
+    def update_percentage_float(self):
+
+        percentage_text = self.percentageOfUnitsForm.text()
+        try:
+            percentage_float = float(percentage_text)
+            
+            if percentage_float < 1:
+                print("Percentage of units displayed should be larger than 1. Please change the value.")
+                return
+            if percentage_float > 100:
+                print("Percentage of units displayed should be smaller than 100.  Please change the value.")
+                return 
+            self.percentage_float = percentage_float
+        except:
+            print("Cannot parse percentage value. Must be a number. Please change the value.")
+            return
+        
+        self.make_relabel_button_list()
 
     def add_from_hfh(self):
         
@@ -359,7 +383,7 @@ class MainWindow(QtWidgets.QWidget):
                 model_directory = self.project.folder_name / "models" / url.split('/')[-1]
                 model_directory.mkdir(exist_ok=True)
 
-                self.project.models = self.project.models + [(model_directory, "hfh")]
+                self.project.model_paths = self.project.model_paths + [(model_directory, "hfh")]
 
                 from huggingface_hub import snapshot_download
 
@@ -449,7 +473,7 @@ class MainWindow(QtWidgets.QWidget):
             selected_directory = file_dialog.selectedFiles()[0]
 
             if is_a_model(selected_directory):
-                self.project.models = self.project.models + [(selected_directory, "local")]
+                self.project.model_paths = self.project.model_paths + [(selected_directory, "local")]
                 self.make_model_list()
             else:
                 print(f"{selected_directory} is not a UnitRefine model folder.")
@@ -526,8 +550,17 @@ class MainWindow(QtWidgets.QWidget):
             curate_button = QtWidgets.QPushButton(f'Relabel "{selected_directory_text_display}"')
             curate_button.clicked.connect(partial(self.show_validate_window, analyzer, analyzer_index, True))
 
-            self.relabelLayout.addWidget(curate_button,3+analyzer_index,0,1,3)
+            button_text = "---"
+            if self.project.selected_model is not None:
+                relabelled_units_path = self.project.folder_name / analyzer['analyzer_in_project'] / f"relabelled_units_{self.project.selected_model.name}.csv"    
+                all_metrics_path = self.project.folder_name / analyzer['analyzer_in_project'] / "all_metrics.csv"                     
+                if all_metrics_path.is_file() and relabelled_units_path.is_file():
+                    all_metrics = pd.read_csv(all_metrics_path)
+                    labels = pd.read_csv(relabelled_units_path)
+                    button_text = f"{len(labels)}/{int(np.ceil(len(all_metrics)*self.percentage_float/100))}"
 
+            self.relabelLayout.addWidget(curate_button,3+analyzer_index,0,1,3)
+            self.relabelLayout.addWidget(QtWidgets.QLabel(button_text),3+analyzer_index,4,1,3)
 
     def make_validate_button_list(self):
 
@@ -546,15 +579,6 @@ class MainWindow(QtWidgets.QWidget):
             curate_button = QtWidgets.QPushButton(f'Inspect "{selected_directory_text_display}"')
             curate_button.clicked.connect(partial(self.show_validate_window, analyzer, analyzer_index, False))
 
-            # code to check how many units have been relabelled...
-            # button_text = "---"
-            # if self.project.selected_model is not None:
-            #     relabelled_units_path = self.project.folder_name / analyzer['analyzer_in_project'] / f"relabelled_units_{self.project.selected_model}.csv"                    
-            #     all_metrics_path = self.project.folder_name / analyzer['analyzer_in_project'] / "all_metrics.csv"                    
-            #     if all_metrics_path.is_file() and relabelled_units_path.is_file():
-            #         all_metrics = pd.read_csv(all_metrics_path)
-            #         labels = pd.read_csv(relabelled_units_path)
-            #         button_text = f"{len(labels)}/{len(all_metrics)}"
             
             self.validateLayout.addWidget(curate_button,1+analyzer_index,0,1,3)
 
@@ -564,7 +588,7 @@ class MainWindow(QtWidgets.QWidget):
         retrained_model_name = self.retrainedModelNameForm.text()
 
         current_model_name = self.combo_box.currentText()
-        self.project.selected_model, hfh_or_local = [model for model in self.project.models if str(current_model_name) in str(model[0])][0]
+        self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
 
         retrained_model_folder = self.project.selected_model.parent / retrained_model_name
 
@@ -675,14 +699,12 @@ class MainWindow(QtWidgets.QWidget):
 
         shutil.copyfile(self.project.selected_model / 'model_info.json', retrained_model_folder / 'model_info.json')
 
-        self.project.models = self.project.models + [(retrained_model_folder, "local")]
+        self.project.model_paths = self.project.model_paths + [(retrained_model_folder, "local")]
         
         self.make_model_list()
         
         print(f"Successfully retrained model! Saved at {retrained_model_folder}.")
         print(f"balanced accuracy = {learner.score(all_training_data.drop('unit_id', axis=1).values, all_labels['0'].values)}")
-
-        
 
     def show_curation_window(self, selected_directory, analyzer_index):
 
@@ -710,7 +732,7 @@ class MainWindow(QtWidgets.QWidget):
     def make_model_list(self):
         self.combo_box = QtWidgets.QComboBox(self)
         self.combo_box.currentIndexChanged.connect(self.update_retrained_name)
-        model_folders = [Path(model[0]) for model in self.project.models]
+        model_folders = [Path(model[0]) for model in self.project.model_paths]
         model_names = [model_folder.name for model_folder in model_folders]
         self.combo_box.addItems(model_names)       
         self.trainLayout.addWidget(self.combo_box,3,0,1,4)
@@ -721,34 +743,27 @@ class MainWindow(QtWidgets.QWidget):
     def update_retrained_name(self):
         if self.retrainedModelNameForm is not None:
             self.retrainedModelNameForm.setText(f"{self.combo_box.currentText()}_retrained")
-        self.project.selected_model = self.combo_box.currentText()
+        current_model_name = self.combo_box.currentText()
+        self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
         self.make_validate_button_list()
+        try:
+            self.make_relabel_button_list()
+        except:
+            return
 
     def show_validate_window(self, analyzer, analyzer_index, relabel=False):
-
-        percentage_text = self.percentageOfUnitsForm.text()
-        try:
-            percentage_float = float(percentage_text)
-            if percentage_float < 1:
-                print("Percentage of units displayed should be larger than 1. Please change the value.")
-                return
-            if percentage_float > 100:
-                print("Percentage of units displayed should be smaller than 100.  Please change the value.")
-                return 
-        except:
-            print("Cannot parse percentage value. Must be a number. Please change the value.")
-            return
 
         analyzer_path = analyzer['path']
         
         current_model_name = self.combo_box.currentText()
-        self.project.selected_model, hfh_or_local = [model for model in self.project.models if str(current_model_name) in str(model[0])][0]
+        self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
 
         analyzer_in_project = analyzer['analyzer_in_project']
 
         validate_filepath = Path(__file__).absolute().parent / "launch_sigui_validate.py"
-        subprocess.run([sys.executable, validate_filepath, str(analyzer_path), str(self.output_folder), str(analyzer_in_project), str(analyzer_index), self.project.selected_model, current_model_name, hfh_or_local, str(relabel), str(percentage_float)])
+        subprocess.run([sys.executable, validate_filepath, str(analyzer_path), str(self.output_folder), str(analyzer_in_project), str(analyzer_index), self.project.selected_model, current_model_name, hfh_or_local, str(relabel), str(self.percentage_float)])
         print("SpikeInterface-GUI closed, resuming main app.")
+        self.make_relabel_button_list()
 
 def main():
         

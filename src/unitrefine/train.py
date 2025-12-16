@@ -82,7 +82,7 @@ class TrainWindow(QtWidgets.QMainWindow):
 
         project_folder = project.folder_name
 
-        model_folders_in_project = project.models
+        model_folders_in_project = project.model_paths
         if len(model_folders_in_project) > 0:
             model_indices = np.array([int(str(model_path[0].name).split('__')[-1][0]) for model_path in model_folders_in_project if '__' in str(model_path[0].name)])
             max_model_index = np.max(model_indices) if len(model_indices) > 0 else 0
@@ -316,7 +316,7 @@ class TrainWindow(QtWidgets.QMainWindow):
         finally:
             QtWidgets.QApplication.restoreOverrideCursor()
 
-        project.models.append((folder, "local"))
+        project.model_paths.append((folder, "local"))
 
         print(f"\nFinished training models! Best model saved in in {folder}.\n")
 
