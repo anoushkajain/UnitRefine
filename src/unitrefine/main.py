@@ -164,6 +164,8 @@ def load_project(folder_name):
         else:
             project.model_paths.append((model_folder, "local"))
 
+    print(f"{project.analyzers.keys()=}")
+
     return project
 
 class MainWindow(QtWidgets.QWidget):
@@ -176,8 +178,6 @@ class MainWindow(QtWidgets.QWidget):
         
         self.w = None
         self.sorting_analyzer_paths = []
-        self.curate_buttons = []
-        self.delete_buttons = []
 
         self.output_folder = project.folder_name
 
@@ -203,11 +203,11 @@ class MainWindow(QtWidgets.QWidget):
         projectLayout.addWidget(output_folder_text,1,0,1,3)
 
 
-        labels_text = QtWidgets.QLabel("Labels: ")
+        labels_text = QtWidgets.QLabel("Labels: Noise, Good, MUA")
         labels_text.setAlignment(Qt.AlignmentFlag.AlignRight) 
         projectLayout.addWidget(labels_text,2,0,1,1)
-        self.change_labels_button = QtWidgets.QLineEdit("noise, good, MUA")
-        projectLayout.addWidget(self.change_labels_button,2,1,1,2)
+        #self.change_labels_button = QtWidgets.QLabel("")
+        #projectLayout.addWidget(self.change_labels_button,2,1,1,2)
 
         projectWidget.setLayout(projectLayout)
         self.main_layout.addWidget(projectWidget)
@@ -351,6 +351,7 @@ class MainWindow(QtWidgets.QWidget):
                 self.project.save()
                 self.make_curation_button_list()
                 self.make_validate_button_list()
+                self.make_relabel_button_list()
             else:
                 print(f"url {url} is not a valid analyzer path.")
 
@@ -500,7 +501,7 @@ class MainWindow(QtWidgets.QWidget):
 
             icon = self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon) 
             self.btn_settings.setIcon(icon)
-            self.btn_settings.setToolTip("Remove from curation")
+            self.btn_settings.setToolTip(f"Remove {analyzer_index} from curation")
             self.btn_settings.clicked.connect(partial(self.remove_analyzer, analyzer_index))
 
             self.saLayout.addWidget( self.btn_settings,4+analyzer_index,2)
@@ -520,14 +521,12 @@ class MainWindow(QtWidgets.QWidget):
 
     def remove_analyzer(self, analyzer_index):
 
-        analyzer_indices = list(self.project.analyzers.keys())
-
-        analyzer_folder = Path(self.project.folder_name) / Path(self.project.analyzers[analyzer_indices[analyzer_index]]['analyzer_in_project'])
+        analyzer_folder = Path(self.project.folder_name) / Path(self.project.analyzers[analyzer_index]['analyzer_in_project'])
         shutil.rmtree(str(analyzer_folder))
         if analyzer_folder.is_dir():
             os.rmdir(str(analyzer_folder))
 
-        self.project.analyzers.pop(analyzer_indices[analyzer_index])
+        self.project.analyzers = {key: value for key, value in self.project.analyzers.items() if key != analyzer_index}
 
         self.make_curation_button_list()
         self.make_validate_button_list()
