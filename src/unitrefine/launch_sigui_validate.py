@@ -155,9 +155,9 @@ controller = Controller(
 layout_dict={'zone1': ['unitlist', 'mainsettings'], 'zone2': [], 'zone3': ['waveform'], 'zone4': ['correlogram'], 'zone5': ['spikeamplitude'], 'zone6': [], 'zone7': [], 'zone8': ['spikerate']}
 
 if relabel:
-    print(f"Launching SpikeInterface-GUI to inspect automated curation for analyzer at {analyzer_folder}")
+    print(f"Launching SpikeInterface-GUI to relabel automated curation for analyzer at {analyzer_folder}")
 else:
-    print(f"Launching SpikeInterface-GUI to relabel model predictions for analyzer at {analyzer_folder}")
+    print(f"Launching SpikeInterface-GUI to inspect model predictions for analyzer at {analyzer_folder}")
 
 print("Main UnitRefine window will remain inactive until you close the SpikeInterface-GUI window")
 print("Re-label units as noise, good and MUA by pressing 'n', 'g' and 'm' on your keyboard.")

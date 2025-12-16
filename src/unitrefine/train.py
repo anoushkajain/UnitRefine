@@ -130,7 +130,7 @@ class TrainWindow(QtWidgets.QMainWindow):
         train_model_kwargs['labels'] = labels
         parent_folder = project_folder / 'models' 
 
-        metric_names = [metric_name for metric_name in metric_names_set if metric_name not in ["index", "quality", "unit_id"]]
+        metric_names = [metric_name for metric_name in metric_names_set if metric_name not in ["index", "quality", "unit_id"]]        
         self.metric_names = metric_names
         self.available_metrics = copy(metric_names)
 
@@ -250,7 +250,6 @@ class TrainWindow(QtWidgets.QMainWindow):
 
     def select_metrics(self, text):
 
-
         preset_metric_names = metrics_presets[text]
         metric_names = [metric_name for metric_name in preset_metric_names if metric_name in self.available_metrics]
 
@@ -265,21 +264,15 @@ class TrainWindow(QtWidgets.QMainWindow):
             widget = item.widget()
             
             if widget is not None:
-                # deleteLater schedules the widget for deletion
                 widget.deleteLater()
 
         for metric in metrics:
 
-            # Create the pill
             pill = MetricPill(metric)
-            # Connect the custom signal to your specific removal method
             pill.removed.connect(self.remove_metric_from_list)
-            
-            # Add to layout
             self.pill_layout.addWidget(pill)
-            #self.input_field.clear()
 
-    # --- This is the specific method you requested ---
+
     def remove_metric_from_list(self, metric_name):
         self.metric_names = [existing_metric_name for existing_metric_name in self.metric_names if existing_metric_name != metric_name]
 

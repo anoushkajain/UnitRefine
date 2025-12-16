@@ -164,8 +164,6 @@ def load_project(folder_name):
         else:
             project.model_paths.append((model_folder, "local"))
 
-    print(f"{project.analyzers.keys()=}")
-
     return project
 
 class MainWindow(QtWidgets.QWidget):
@@ -202,12 +200,9 @@ class MainWindow(QtWidgets.QWidget):
         output_folder_text = QtWidgets.QLabel(f"Project folder: {self.output_folder}")
         projectLayout.addWidget(output_folder_text,1,0,1,3)
 
-
         labels_text = QtWidgets.QLabel("Labels: Noise, Good, MUA")
         labels_text.setAlignment(Qt.AlignmentFlag.AlignRight) 
         projectLayout.addWidget(labels_text,2,0,1,1)
-        #self.change_labels_button = QtWidgets.QLabel("")
-        #projectLayout.addWidget(self.change_labels_button,2,1,1,2)
 
         projectWidget.setLayout(projectLayout)
         self.main_layout.addWidget(projectWidget)
@@ -352,6 +347,7 @@ class MainWindow(QtWidgets.QWidget):
                 self.make_curation_button_list()
                 self.make_validate_button_list()
                 self.make_relabel_button_list()
+                print(f"Successfully added analyzer at {url} to project.")
             else:
                 print(f"url {url} is not a valid analyzer path.")
 
@@ -388,7 +384,7 @@ class MainWindow(QtWidgets.QWidget):
 
                 from huggingface_hub import snapshot_download
 
-                print(f"\nDownloading model from HuggingFaceHub repo {url}.\n")
+                print(f"Downloading model from HuggingFaceHub repo {url}.\n")
 
                 QtWidgets.QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
@@ -424,6 +420,8 @@ class MainWindow(QtWidgets.QWidget):
                     json.dump(model_info, f, indent=4)
 
                 self.make_model_list()
+
+                print(f"Model at {url} successfully added to project.\n")
 
             else:
                 print(f"Repo {url} does not exist.")
@@ -461,6 +459,7 @@ class MainWindow(QtWidgets.QWidget):
                 self.make_model_list()
                 self.make_relabel_button_list()
 
+                print(f"Successfully added analyzer at {selected_directory} to project.")
             else:
                 print(f"Selected directory {selected_directory} is not a SortingAnalyzer.")
 
@@ -474,8 +473,9 @@ class MainWindow(QtWidgets.QWidget):
             selected_directory = file_dialog.selectedFiles()[0]
 
             if is_a_model(selected_directory):
-                self.project.model_paths = self.project.model_paths + [(selected_directory, "local")]
+                self.project.model_paths = self.project.model_paths + [(Path(selected_directory), "local")]
                 self.make_model_list()
+                print(f"Model at {selected_directory} added to project.")
             else:
                 print(f"{selected_directory} is not a UnitRefine model folder.")
             
@@ -525,6 +525,8 @@ class MainWindow(QtWidgets.QWidget):
         shutil.rmtree(str(analyzer_folder))
         if analyzer_folder.is_dir():
             os.rmdir(str(analyzer_folder))
+
+        print(f"Removing analyzer at {analyzer_folder} from project.")
 
         self.project.analyzers = {key: value for key, value in self.project.analyzers.items() if key != analyzer_index}
 
@@ -578,7 +580,6 @@ class MainWindow(QtWidgets.QWidget):
             curate_button = QtWidgets.QPushButton(f'Inspect "{selected_directory_text_display}"')
             curate_button.clicked.connect(partial(self.show_validate_window, analyzer, analyzer_index, False))
 
-            
             self.validateLayout.addWidget(curate_button,1+analyzer_index,0,1,3)
 
 
@@ -587,6 +588,9 @@ class MainWindow(QtWidgets.QWidget):
         retrained_model_name = self.retrainedModelNameForm.text()
 
         current_model_name = self.combo_box.currentText()
+        if current_model_name == '':
+            print("No models trained or loaded into project - you are trying to retrain a non-existent model.")
+            return
         self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
 
         retrained_model_folder = self.project.selected_model.parent / retrained_model_name
@@ -707,9 +711,6 @@ class MainWindow(QtWidgets.QWidget):
 
     def show_curation_window(self, selected_directory, analyzer_index):
 
-        self.change_labels_button.setReadOnly(True)
-        self.change_labels_button.setStyleSheet("background-color: LightBlue")
-
         analyzer_path = selected_directory
 
         print(f"\nLaunching SpikeInterface-GUI to curate analyzer at {analyzer_path}...")
@@ -722,11 +723,26 @@ class MainWindow(QtWidgets.QWidget):
         self.make_curation_button_list()
 
     def show_train_window(self):
+
+        if not self.curated_units_exist():
+            print("No units have been curated - cannot train a model.")
+            return
+
         self.w = TrainWindow(self.project)
         self.w.resize(800, 600)
         self.w.show()
         self.w.update_signal.connect(self.make_model_list)
         
+    def curated_units_exist(self):
+        
+        for analyzer in self.project.analyzers.values():
+            analyzer_folder = self.project.folder_name / analyzer['analyzer_in_project']
+            labels_path = analyzer_folder / "labels.csv"
+            if labels_path.is_file():
+                return True
+
+        return False
+
 
     def make_model_list(self):
         self.combo_box = QtWidgets.QComboBox(self)
@@ -756,6 +772,9 @@ class MainWindow(QtWidgets.QWidget):
         analyzer_path = analyzer['path']
         
         current_model_name = self.combo_box.currentText()
+        if current_model_name == '':
+            print("No models trained or loaded into project! Please train or load one, then you can inspect/improve its predictions.")
+            return
         self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
 
         analyzer_in_project = analyzer['analyzer_in_project']
