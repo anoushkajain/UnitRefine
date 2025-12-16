@@ -744,7 +744,8 @@ class MainWindow(QtWidgets.QWidget):
         if self.retrainedModelNameForm is not None:
             self.retrainedModelNameForm.setText(f"{self.combo_box.currentText()}_retrained")
         current_model_name = self.combo_box.currentText()
-        self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
+        if len(self.project.model_paths) > 0:
+            self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
         self.make_validate_button_list()
         try:
             self.make_relabel_button_list()
