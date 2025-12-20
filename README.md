@@ -11,12 +11,12 @@ UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3) f
 | Dataset                      | Probe type                | n recordings | Spike sorter          | Species |
 |------------------------------|----------------------------|--------------|------------------------|---------|
 | Base dataset                 | Neuropixels 1.0            | 11           | Kilosort 2.5          | Mouse   |
-| rat recordings               | Neuropixels 2.0            | 4            | Kilosort 4            | rat   |
-| Mole rat recordings          | Neuropixels 2.0            | 4            | Kilosort 4            | Mole rat |
-| Nonhuman primate recordings  | Utah array                 | 11           | Kilosort 4 (Xing Chen et al. 2022)| Macaque |
+| rat recordings               | Neuropixels 2.0            | 4            | Kilosort 4 (Pachitariu et al. 2024)          | rat   |
+| Mole rat recordings          | Neuropixels 2.0            | 4            | Kilosort 4           | Mole rat (Shirdhankar et al. 2025) |
+| Nonhuman primate recordings  | Utah array                 | 11           | Kilosort 4 | Macaque (Xing Chen et al. 2022)|
 | Human intracranial recordings| Behnke–Fried electrodes    | 12           | Combinato (Niediek et al., 2016) | Human |
-
-### Installation
+---
+## Installation
 To use UnitRefine, install SpikeInterface (≥ 0.102).
 ```bash
 pip install spikeinterface
@@ -29,8 +29,8 @@ We provide a **UnitRefine GUI** that simplifies unit curation, model training, l
 
 For detailed instructions and usage examples, please refer to the documentation [here](https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/README.md).
 
-
-### Tutorials  
+---
+## Tutorials  
 Also refer to the automated curation tutorials available in the SpikeInterface documentation:  
 [Automated Curation Tutorials](https://spikeinterface.readthedocs.io/en/latest/tutorials_custom_index.html#automated-curation-tutorials)  
 
