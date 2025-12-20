@@ -29,8 +29,6 @@ A window should pop up that looks something like this:
 </p>
 
 
-### Trying the GUI
-
 To try the GUI, you need [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html),
 download a precomputed Sorting Analyzer from [here](https://drive.google.com/drive/folders/14axIOdweMeSpxigYlRIph4e7ZhO7_inN?usp=sharing)
 and load it directly into the GUI (recommended).
@@ -46,7 +44,7 @@ Click the **Curate** button as shown below to open the SpikeInterface GUI.
 <p align="center">
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/curation_gui.jpg" width="500"/>
 </p>
-**Note:** The SpikeInterface GUI may take some time to launch. While it is open, the UnitRefine GUI may appear unresponsive in the current version.
+Note: The SpikeInterface GUI may take some time to launch. While it is open, the UnitRefine GUI may appear unresponsive in the current version.
 
 During curation, relabel units using the keyboard shortcuts:
 - **`n`** → noise  
@@ -56,7 +54,9 @@ During curation, relabel units using the keyboard shortcuts:
 Once you have finished labeling the units, close the SpikeInterface GUI.  
 Your labels are automatically saved in the project folder.
 
-Then, click the Train button to train a model using your curated dataset.
+## Train a model
+
+Click the Train button to train a model using your curated dataset.
 <p align="center">
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/train_and_load_gui.JPG" width="500"/>
 </p>
