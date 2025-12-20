@@ -16,60 +16,22 @@ UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3) f
 | Nonhuman primate recordings  | Utah array                 | 11           | Kilosort 4 (Xing Chen et al. 2022)| Macaque |
 | Human intracranial recordings| Behnke–Fried electrodes    | 12           | Combinato (Niediek et al., 2016) | Human |
 
-
-## Installation
-
-Simply install Spikeinterface to use UnitRefine in your existing workflows. 
-
+### Installation
+To use UnitRefine, install SpikeInterface (≥ 0.102).
 ```bash
-pip install spikeinterface[full]
+pip install spikeinterface
 ```
-
-To use our GUI, [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.
-
-1. Clone this repository and move into the repo folder.
-
-```bash
-git clone https://github.com/anoushkajain/UnitRefine.git
-cd UnitRefine
-```
-
-2. Open unit_refine, creating a new project.
-
-```bash
-uv run unitrefine --project_folder my_new_project
-``` 
-Note: you must be in the UnitRefine folder that you've cloned from github when you run this command.
-
-A window should pop up that looks something like this:
+We provide a **UnitRefine GUI** that simplifies unit curation, model training, loading, and relabeling.
 
 <p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/gui-image.JPG" width="500"/>
+  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/unitrefine_gui.JPG" width="500"/>
 </p>
 
+For detailed instructions and usage examples, please refer to the documentation [here](https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/README.md).
 
-To try the GUI, you need [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html), you can load an example Allen Institute dataset by selecting **Add Analyzer from S3** and pasting:
-To try the GUI, you first need a [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html).
-You can load an example Allen Institute dataset by selecting Add Analyzer from S3 and pasting the following:
-
-```bash
-
-```
-
-Then load a pretrained model from the Hugging Face Hub (HFH):
-```bash
-SpikeInterface/UnitRefine_sua_mua_classifier
-```
-
-From here, it should be easy to add sorting analyzers, curate the data, train a model and validate your model. Keep an eye on the feedback that comes through the terminal - it will help! You can also generate code which you could use in a Python script. Here is a flow chart to show the functionalities of the GUI
-
-Whenever you curate something or make a model, whatever you've done is automatically saved in your project folder. Next time you run unit_refine, just point to your existing folder and it will load:
-```bash
-uv run unitrefine --project_folder my_existing_project
-```
 
 ### Tutorials  
-To get started with UnitRefine, refer to the automated curation tutorials available in the SpikeInterface documentation:  
+Also refer to the automated curation tutorials available in the SpikeInterface documentation:  
 [Automated Curation Tutorials](https://spikeinterface.readthedocs.io/en/latest/tutorials_custom_index.html#automated-curation-tutorials)  
 
 Additionally, this repository includes **Jupyter Notebooks** in [section](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial) with detailed step-by-step tutorials on how to:  
@@ -80,8 +42,6 @@ Additionally, this repository includes **Jupyter Notebooks** in [section](https:
 ## Citation
 
 If you find **UnitRefine** useful in your research, please cite our preprint: https://www.biorxiv.org/content/10.1101/2025.03.30.645770v1
-
-
 
 ## Acknowledgements
 
@@ -95,7 +55,7 @@ UnitRefine is highly dependent on the flexible and powerful SpikeInterface and S
   Nilufar Lahiji, Sacha Abou Rachid, Severin Graff, Luca Koenig, Natalia Babushkina, Simon Musall  
 
 - **Advisors and collaborators:**  
-  Alessio Buccino, Sonja Grün, Matthias Hennig, Simon Musall  
+  Alessio Buccino, Olivier Winter, Sonja Grün, Matthias Hennig, Simon Musall  
 
 
 ## Feedback and Contributions  
