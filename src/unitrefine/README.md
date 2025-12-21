@@ -5,7 +5,7 @@
 1. To use our GUI, [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.
 (Note for Windows users: If you have issues installing uv, please check out the FAQ section.)
 
-2. Clone UnitRefine repository and move into the repo folder.
+2. Use Git (https://git-scm.com/install) to clone UnitRefine repository and move into the repo folder to launch the GUI.
 
 ```bash
 git clone https://github.com/anoushkajain/UnitRefine.git
