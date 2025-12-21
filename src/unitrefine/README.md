@@ -5,7 +5,7 @@
 1. To use our GUI, [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.
 (Note for Windows users: If you have issues installing uv, please check out the FAQ section.)
 
-2. Use Git (https://git-scm.com/install) to clone UnitRefine repository and move into the repo folder to launch the GUI.
+2. Use Git (https://git-scm.com/install) to clone the UnitRefine repository and move into the repo folder to launch the GUI.
 
 ```bash
 git clone https://github.com/anoushkajain/UnitRefine.git
@@ -15,12 +15,12 @@ cd UnitRefine
 ---
 ## Launching the GUI
 
-Open UnitRefine, creating a new project.
+Open UnitRefine and create a new project.
 
 ```bash
 uv run unitrefine --project_folder my_new_project
 ``` 
-(Note: you must be in the UnitRefine folder that you've cloned from github when you run this command.)
+(Note: you must be in the UnitRefine folder that you've cloned from Github when you run this command.)
 
 A window should pop up that looks something like this:
 
@@ -29,10 +29,13 @@ A window should pop up that looks something like this:
 </p>
 
 
-To try the GUI, you need [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html),
-download a precomputed Sorting Analyzer from [here](https://drive.google.com/drive/folders/14axIOdweMeSpxigYlRIph4e7ZhO7_inN?usp=sharing)
-and load it directly into the GUI (recommended).
-Alternatively, you can load an example Allen Institute dataset by selecting Add Analyzer from S3 and pasting:
+To use the GUI, you need a recording in form of a [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html) object.
+If your data is saved in a different format and you want to train and apply a model based on an existing set of metrics, you can check out our tutorial notebooks [here](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial).
+
+To test the GUI, you can also download a precomputed Sorting Analyzer from [here](https://drive.google.com/drive/folders/14axIOdweMeSpxigYlRIph4e7ZhO7_inN?usp=sharing)
+and load it directly into the GUI (recommended). 
+
+Alternatively, you can load an example Allen Institute dataset by selecting “Add Analyzer from S3” and pasting:
 
 ```bash
 s3://aind-open-data/ecephys_820459_2025-11-10_15-07-13_sorted_2025-11-22_08-46-30/postprocessed/experiment1_Record Node 101#Neuropix-PXI-100.ProbeA-AP_recording1.zarr
@@ -44,9 +47,11 @@ Click the **Curate** button as shown below to open the SpikeInterface GUI.
 <p align="center">
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/curation_gui.jpg" width="500"/>
 </p>
-Note: The SpikeInterface GUI may take some time to launch. While it is open, the UnitRefine GUI may appear unresponsive in the current version.
+Note: It may take some time for data to download and the SpikeInterface GUI to launch. While it is open, the UnitRefine GUI may appear unresponsive in the current version. Just be patient until the data is loaded and remember to close the SpikeInterface GUI before returning to the UnitRefine GUI.
+<p></p>
 
-During curation, relabel units using the keyboard shortcuts:
+During curation in SpikeInterface GU, units can be relabeled using the keyboard shortcuts:
+
 - **`n`** → noise  
 - **`g`** → good (SUA)  
 - **`m`** → MUA
