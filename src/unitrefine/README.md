@@ -2,7 +2,7 @@
 
 ## Installation
 
-1. To use our GUI, [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.
+1. To use our GUI, [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.<br>
 (Note for Windows users: If you have issues installing uv, please check out the FAQ section.)
 
 2. Use Git (https://git-scm.com/install) to clone the UnitRefine repository and move into the repo folder to launch the GUI.
@@ -32,8 +32,7 @@ A window should pop up that looks something like this:
 To use the GUI, you need a recording in form of a [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html) object.
 If your data is saved in a different format and you want to train and apply a model based on an existing set of metrics, you can check out our tutorial notebooks [here](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial).
 
-To test the GUI, you can also download a precomputed Sorting Analyzer from [here](https://drive.google.com/drive/folders/14axIOdweMeSpxigYlRIph4e7ZhO7_inN?usp=sharing)
-and load it directly into the GUI (recommended). 
+To test the GUI, you can also download a precomputed Sorting Analyzer from [here](https://drive.google.com/file/d/1Q4gXe9FEy--ApJhHmbyp5cRUvflduwKX/view?usp=sharing). Just download the .zip file and uncompress it. Then load it directly into the GUI using the "Load Analyzer folder" button (recommended). 
 
 Alternatively, you can load an example Allen Institute dataset by selecting “Add Analyzer from S3” and pasting:
 
@@ -56,8 +55,8 @@ During curation in SpikeInterface GU, units can be relabeled using the keyboard 
 - **`g`** → good (SUA)  
 - **`m`** → MUA
  
-Once you have finished labeling the units, close the SpikeInterface GUI.  
-Your labels are automatically saved in the project folder.
+You can also navigate between units using Ctr + up/down arrows.
+Once you have finished labeling the units, close the SpikeInterface GUI. Your labels are automatically saved in the project folder.
 
 ## Train a model
 
