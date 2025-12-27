@@ -29,6 +29,9 @@ from spikeinterface.core import load_sorting_analyzer
 
 from unitrefine.train import TrainWindow
 
+import re
+_RETRAINED_RE = re.compile(r"^(?P<base>.*?)(?:_retrained(?:_(?P<idx>\d+))?)?$")
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -791,8 +794,20 @@ class MainWindow(QtWidgets.QWidget):
         self.update_retrained_name()
 
     def update_retrained_name(self):
+
+        current_model_name = str(self.combo_box.currentText())
+    
+        # Get names of all models you already know about
+        existing_names = [str(model_path.name) for (model_path, _) in self.project.model_paths]
+    
+        # Strip any existing retrained suffix from the currently selected name
+        base_name, _ = _base_and_idx(current_model_name)
+    
+        # Compute the next retrained name (01, 02, ...)
+        retrained_name = _next_retrained_name(base_name, existing_names, width=2)
+
         if self.retrainedModelNameForm is not None:
-            self.retrainedModelNameForm.setText(f"{self.combo_box.currentText()}_retrained")
+            self.retrainedModelNameForm.setText(retrained_name)
         current_model_name = self.combo_box.currentText()
         if len(self.project.model_paths) > 0:
             self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
@@ -858,6 +873,42 @@ def main():
 
 def is_a_model(directory):
     return (Path(directory) / "best_model.skops").is_file()
+
+def _base_and_idx(name: str):
+    """
+    Returns (base_name, idx or None) where idx is the numeric suffix after _retrained_.
+    Handles:
+      - foo
+      - foo_retrained
+      - foo_retrained_01
+      - foo_retrained_9
+    """
+    m = _RETRAINED_RE.match(name)
+    if not m:
+        return name, None
+    base = m.group("base")
+    idx = m.group("idx")
+    return base, (int(idx) if idx is not None else None)
+
+def _next_retrained_name(base: str, existing_names: list[str], width: int = 2) -> str:
+    """
+    Finds next available retrained index based on existing names.
+    Produces: base_retrained_01, base_retrained_02, ...
+    If base_retrained exists without number, treat it as idx=1.
+    """
+    max_idx = 0
+    for n in existing_names:
+        b, idx = _base_and_idx(n)
+        if b != base:
+            continue
+
+        if n == f"{base}_retrained" and idx is None:
+            max_idx = max(max_idx, 1)
+        elif idx is not None:
+            max_idx = max(max_idx, idx)
+
+    next_idx = max_idx + 1
+    return f"{base}_retrained_{next_idx:0{width}d}"
 
 if __name__ == "__main__":
     main()
