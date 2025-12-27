@@ -14,6 +14,7 @@ import pandas as pd
 from huggingface_hub import repo_exists
 from modAL.models import ActiveLearner
 from modAL.uncertainty import uncertainty_sampling
+from sklearn.metrics import balanced_accuracy_score
 from spikeinterface.curation.model_based_curation import load_model
 from skops.io import dump
 
@@ -584,7 +585,10 @@ class MainWindow(QtWidgets.QWidget):
 
 
     def retrain_model(self):
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import balanced_accuracy_score
 
+        
         retrained_model_name = self.retrainedModelNameForm.text()
 
         current_model_name = self.combo_box.currentText()
@@ -612,11 +616,36 @@ class MainWindow(QtWidgets.QWidget):
         Y_training_raw = pd.read_csv(Path(self.project.selected_model) / 'labels.csv')
         Y_training = Y_training_raw.drop('unit_index', axis=1).values
 
+        y_training = Y_training.ravel()
+
+        # Split indices so you can keep unit_id aligned too
+        idx = np.arange(len(y_training))
+        train_idx, test_idx = train_test_split(
+            idx,
+            test_size=0.2,
+            random_state=0,          # keep stable across retrains
+            stratify=y_training if len(np.unique(y_training)) > 1 else None
+        )
+
+        X_train_raw = X_training[train_idx]
+        y_train = y_training[train_idx]
+
+        X_test_raw = X_training[test_idx]
+        y_test = y_training[test_idx]
+
+        # --- preprocess train/test consistently using the already-fitted preprocessing
+        X_train_proc = model_scaler.transform(
+            model_imputer.transform(pd.DataFrame(X_train_raw, columns=model_metric_names))
+        )
+        X_test_proc = model_scaler.transform(
+            model_imputer.transform(pd.DataFrame(X_test_raw, columns=model_metric_names))
+        )
+
         learner = ActiveLearner(
-            estimator=model['classifier'],                    
-            query_strategy=uncertainty_sampling,   # Query strategy: select most uncertain samples
-            X_training=X_training,              
-            y_training=Y_training.ravel()          
+            estimator=model['classifier'],
+            query_strategy=uncertainty_sampling,  # Query strategy: select most uncertain samples
+            X_training=X_train_proc,
+            y_training=y_train
         )
 
         X_new = []
@@ -676,8 +705,12 @@ class MainWindow(QtWidgets.QWidget):
                 X_just_values.append(all_metrics.query(f'unit_id == {unit_id}').drop('unit_id', axis=1).values[0])
                 y_new.append(quality)
 
-        X_imputed = model_imputer.fit_transform(pd.DataFrame(X_just_values,columns=model_metric_names))
-        learner.teach(X_imputed, y_new)
+        # X_imputed = model_imputer.fit_transform(pd.DataFrame(X_just_values,columns=model_metric_names))
+        # learner.teach(X_imputed, y_new)
+        X_new_proc = model_scaler.transform(
+            model_imputer.transform(pd.DataFrame(X_just_values, columns=model_metric_names))
+        )
+        learner.teach(X_new_proc, y_new)
 
         all_training_data = pd.concat([
             pd.DataFrame(X_training_raw, columns=np.concat([['unit_id'],model_metric_names])),
@@ -707,7 +740,9 @@ class MainWindow(QtWidgets.QWidget):
         self.make_model_list()
         
         print(f"Successfully retrained model! Saved at {retrained_model_folder}.")
-        print(f"balanced accuracy = {learner.score(all_training_data.drop('unit_id', axis=1).values, all_labels['0'].values)}")
+        # print(f"balanced accuracy = {learner.score(all_training_data.drop('unit_id', axis=1).values, all_labels['0'].values)}")
+        y_pred_test = learner.estimator.predict(X_test_proc)
+        print(f"balanced accuracy (held-out test) = {balanced_accuracy_score(y_test, y_pred_test):.4f}")
 
     def show_curation_window(self, selected_directory, analyzer_index):
 
