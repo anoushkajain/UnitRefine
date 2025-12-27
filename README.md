@@ -41,7 +41,7 @@ Additionally, this repository includes **Jupyter Notebooks** in [section](https:
 ---
 ## Citation
 
-If you find **UnitRefine** useful in your research, please cite our preprint: https://www.biorxiv.org/content/10.1101/2025.03.30.645770v1
+If you find **UnitRefine** useful in your research, please cite our preprint: https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2
 
 ## Acknowledgements
 
