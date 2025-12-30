@@ -608,7 +608,21 @@ class MainWindow(QtWidgets.QWidget):
         label_conversion = model_info['label_conversion']
         invert_label_conversion = {val: int(key) for key, val in label_conversion.items()}
         model_metric_names = model.feature_names_in_
+        
+        # map GUI labels to model labels to handle models trained with "not-sua" instead of "MUA" or "noise"
+        non_sua_label = "not-sua" if "not-sua" in invert_label_conversion else None
 
+        
+        def _map_quality(q: str) -> str:
+            # label already supported by the model
+            if q in invert_label_conversion:
+                return q
+            # collapse MUA + noise into non-SUA if model uses that convention
+            if non_sua_label is not None and q in ("MUA", "noise"):
+                return non_sua_label
+            return q  # will raise KeyError later if truly unsupported
+        
+        
         model_imputer = model['imputer']
         model_imputer.keep_empty_features = True
 
@@ -697,10 +711,10 @@ class MainWindow(QtWidgets.QWidget):
                 if relabelled_unit['unit_id'] in original_labels['unit_id'].values:
                     if relabelled_unit['quality'] != original_labels.query(f"unit_id == {relabelled_unit['unit_id']}")['quality'].values[0]:
                         # New label contradicts the original label
-                        y_new_with_unit_ids.append([invert_label_conversion[relabelled_unit['quality']], relabelled_unit['unit_id']])
+                        y_new_with_unit_ids.append([invert_label_conversion[_map_quality(relabelled_unit['quality'])], relabelled_unit['unit_id']])
                 else:
                     # A newly labelled unit
-                    y_new_with_unit_ids.append([invert_label_conversion[relabelled_unit['quality']], relabelled_unit['unit_id']])
+                    y_new_with_unit_ids.append([invert_label_conversion[_map_quality(relabelled_unit['quality'])], relabelled_unit['unit_id']])
 
 
             for quality, unit_id in y_new_with_unit_ids:
