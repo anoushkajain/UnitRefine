@@ -32,7 +32,7 @@ A window should pop up that looks something like this:
 To use the GUI, you need a recording in form of a [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html) object.
 If your data is saved in a different format and you want to train and apply a model based on an existing set of metrics, you can check out our tutorial notebooks [here](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial).
 
-To test the GUI, you can also download a precomputed Sorting Analyzer from [here](https://drive.google.com/file/d/1TynO9qXTXm_IKRGtuOb8rCd-S0Zhza0I/view?usp=sharing). Just download the .zip file and uncompress it. Then load the folder directly into the GUI using the "Load Analyzer folder" button (recommended). 
+To test the GUI, you can also download a precomputed Sorting Analyzer from [here](https://drive.google.com/file/d/1TynO9qXTXm_IKRGtuOb8rCd-S0Zhza0I/view?usp=sharing). Just download the .zip file and uncompress it. Then load the contained folder "sorting_analyzer_folder" directly into the GUI using the "Load Analyzer folder" button (recommended). 
 
 Alternatively, you can load an example Allen Institute dataset by selecting “Add Analyzer from S3” and pasting:
 
@@ -66,7 +66,13 @@ Click the Train button to train a model using your curated dataset.
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/train_and_load_gui.JPG" width="500"/>
 </p>
 
-In the terminal, you will see logs showing how your labels were used to train the model, for example:
+This will bring up a dialog to select the model type and pre-processing method. Our results from testing different models are described in the [UnitRefine paper](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2.full) but for most dataset, the default settings (random forest classifer with nearest-neighbor imputation and standard scaler) should work well and can be trained very quickly. Click 'Train models' to start training.
+
+<p align="center">
+  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/model_training_example.JPG" width="500"/>
+</p>
+
+In the terminal, you will see logs from model training, for example:
 ```bash
 Running RandomForestClassifier with imputation knn and scaling StandardScaler()
     Balanced Accuray: 
