@@ -69,7 +69,7 @@ Click the Train button to train a model using your curated dataset.
 This will bring up a dialog to select the model type and pre-processing method. Our results from testing different models are described in the [UnitRefine paper](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2.full) but for most dataset, the default settings (random forest classifer with nearest-neighbor imputation and standard scaler) should work well and can be trained very quickly. Click 'Train models' to start training.
 
 <p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/model_training_example.JPG" width="500"/>
+  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/model_training_example.jpg" width="500"/>
 </p>
 
 In the terminal, you will see logs from model training, for example:
@@ -88,7 +88,7 @@ Alternatively, you can use retraining with active learning to automatically iden
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/re-label.JPG" width="500"/>
 </p>
 
-After curation, press the "Retrain model" button to train a new model that includes the additional low-confidence labels. This model will be saved under a new name, e.g. model1_retrained_01. You can repeat relabeling and retraining as often as you want. Each step will increase the number of available labels and create a new model version (labeld model1_retrained_02 etc) until a strong model has been found. In our experience model the performance should clearly improve when labeling about 10% of the curated clusters and the total number of curated clusters should be at least 50 or more. Once you have a trained model with good balanced accuracy you can use it create cluster labels for any recording.
+After curation, press the "Retrain model" button to train a new model that includes the additional low-confidence labels. This model will be saved under a new name, e.g. model_1_retrained_01. You can repeat relabeling and retraining as often as you want. Each step will increase the number of available labels and create a new model version (labeld model_1_retrained_02, etc) until a strong model has been found. In our experience model the performance should clearly improve when labeling about 10% of the curated clusters and the total number of curated clusters should be at least 50 or more. Once you have a trained model with good balanced accuracy you can use it create cluster labels for any recording.
 
 ## Loading Your Model
 
@@ -112,7 +112,8 @@ These contain all models from different species and recording settings that were
 After selecting a model, use the "Inspect" button to check the predicted labels for each loaded recording. 
 The model predictions are saved in the project folder under: `analyzer_folder/labels_from_UnitRefine-mice-sua-classifier.csv`
 
-If you think the model needs further improvement, you can relabel the units and retrain the model as described above.
+You should see a good relation between the human-inferred cluster label and the model prediction in the column 'model'.
+You can also sort the list by model confidence to see high confidence clusters at the top. If high confidence clusters are incorrect or if you think the model needs overall improvement, you can relabel the units and retrain the model until the visual inspections confirms reliable prediction performance.
 
 Lastly, use the 'Generate code' button at the bottom of the GUI to generate a short code segment in the console that you can use to automatically apply the model to a given recording as part of your analysis pipeline.
 
