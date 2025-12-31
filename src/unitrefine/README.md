@@ -133,7 +133,8 @@ uv run unitrefine --project_folder my_existing_project
 ---
 ## FAQs
 
-1. Issues with installing UV 
+**1. Issues with installing UV**
+
 For windows users trying to install uv, try doing 
 ```bash
 pip install uv
@@ -143,7 +144,8 @@ if this doesn't work then type the following on your cmd.
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-2. Number of labels
+**2. Number of labels**
+
 You need to provide at least 6 labels for each used class (SUA, MUA, Noise) to prevent errors when training a new model. You can also use only SUA and Noise labels to create a binary instead of a 3-class classifier. As a starting model with decent performance you should label at least 10% of the data (should be more than 50 clusters in total).
 
 ----
