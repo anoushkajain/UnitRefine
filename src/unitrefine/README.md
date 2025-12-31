@@ -107,7 +107,7 @@ For example use the path below for a model that was trained on mouse Neuropixels
 AnoushkaJain3/UnitRefine-mice-sua-classifier
 ```
 You can find a collection of the existing pre-trained models [here](https://huggingface.co/AnoushkaJain3).
-These contain all models from different species and recording settings that were used in the [UnitRefine paper](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2.full).
+These contain all models from different species and recording settings that were used in the [UnitRefine paper](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2.full). When using a pre-trained binary classifier that predicts clusters as "good" versus "not-sua" (such as the UnitRefine-mice-sua-classifier), both "MUA" and "Noise" labels from manual curation will be automatically combined into "not-sua".
 
 After selecting a model, use the "Inspect" button to check the predicted labels for each loaded recording. 
 The model predictions are saved in the project folder under: `analyzer_folder/labels_from_UnitRefine-mice-sua-classifier.csv`
@@ -143,4 +143,9 @@ if this doesn't work then type the following on your cmd.
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
+2. Number of labels
+You need to provide at leat 2 labels for each class (SUA, MUA, Noise) to prevent the break from creating an error when training a new 3-class model.
+As a starting model with decent performance you should label at least 10% of the data (should be more than 50 clusters in total).
+
+----
 If you identify other problems, leave an issue in the repository or reach out to us via email.
