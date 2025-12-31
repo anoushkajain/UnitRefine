@@ -144,8 +144,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ```
 
 2. Number of labels
-You need to provide at leat 2 labels for each class (SUA, MUA, Noise) to prevent the break from creating an error when training a new 3-class model.
-As a starting model with decent performance you should label at least 10% of the data (should be more than 50 clusters in total).
+You need to provide at least 6 labels for each used class (SUA, MUA, Noise) to prevent errors when training a new model. You can also use only SUA and Noise labels to create a binary instead of a 3-class classifier. As a starting model with decent performance you should label at least 10% of the data (should be more than 50 clusters in total).
 
 ----
 If you identify other problems, leave an issue in the repository or reach out to us via email.
