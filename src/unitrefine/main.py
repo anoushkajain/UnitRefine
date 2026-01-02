@@ -635,7 +635,7 @@ class MainWindow(QtWidgets.QWidget):
 
         y_training = Y_training.ravel()
 
-        # Split indices so you can keep unit_id aligned too
+        # Split indices so we can keep unit_id aligned too
         idx = np.arange(len(y_training))
         train_idx, test_idx = train_test_split(
             idx,
