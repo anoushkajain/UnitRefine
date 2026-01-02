@@ -6,7 +6,8 @@ UnitRefine is agnostic to probe type, species, brain region, and spike sorter, a
 
 ## Available Pre-trained Models
 
-UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3) for Single-Unit-Activity (SUA) identification across multiple datasets, probe types, and species:
+UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3). Each model folder includes the curated feature matrix it was trained on, where rows correspond to clusters and columns to unit features. We show that UnitRefine can be used to identify Single-Unit Activity (SUA) across multiple datasets, probe types, and species.
+
 
 | Dataset                      | Probe type                | n recordings | Spike sorter          | Species |
 |------------------------------|----------------------------|--------------|------------------------|---------|
