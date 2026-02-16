@@ -51,7 +51,7 @@ jobs:
         shell: pwsh
         run: |
           Invoke-Expression (irm https://astral.sh/uv/install.ps1)
-
+          $env:Path = "$HOME\.local\bin;$env:Path"
           # Attempt sync
           uv sync -y || Write-Host 'uv sync failed, continuing'
 
