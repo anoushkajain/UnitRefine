@@ -88,10 +88,10 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install nbconvert nbformat jupyter-client
+          uv run pip install --upgrade pip
+          uv run pip install nbconvert nbformat jupyter-client ipykernel
 
-          jupyter nbconvert --to notebook --execute \
+          uv run jupyter nbconvert --to notebook --execute \
             UnitRefine/tutorial/apply_model/apply_model_using_sorting_analyzer.ipynb \
             --ExecutePreprocessor.timeout=600 \
             --output executed-notebook.ipynb || true
@@ -100,12 +100,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install nbconvert nbformat jupyter-client
-          python -m pip install ipykernel
-          python -m ipykernel install --user --name python3
+          uv run pip install --upgrade pip
+          uv run pip install nbconvert nbformat jupyter-client ipykernel
 
-          jupyter nbconvert --to notebook --execute `
+          uv run jupyter nbconvert --to notebook --execute `
             UnitRefine\tutorial\apply_model\apply_model_using_sorting_analyzer.ipynb `
             --ExecutePreprocessor.timeout=600 `
             --output executed-notebook.ipynb || Write-Host 'notebook execution failed, continuing'
