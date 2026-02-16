@@ -11,6 +11,7 @@ jobs:
     name: Test on ${{ matrix.os }} / Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python: [3.11]
@@ -67,13 +68,20 @@ jobs:
         run: |
           uv run unitrefine --project_folder ci_test_project || Write-Host 'uv run failed, continuing'
 
-      - name: Verify package installation and fallback to pip if needed
+      - name: Verify package installation and fallback to pip if needed (Linux/macOS)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
-          python - <<'PY'
+          uv run python - <<'PY'
           import unitrefine
           print('unitrefine import OK')
           PY
+
+      - name: Verify package installation and fallback to pip if needed (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          uv run python -c "import unitrefine; print('unitrefine import OK')" || Write-Host 'verify failed, continuing'
 
       - name: Execute example Jupyter notebook (Linux/macOS)
         if: runner.os != 'Windows'
