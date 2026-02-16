@@ -53,7 +53,7 @@ jobs:
           Invoke-Expression (irm https://astral.sh/uv/install.ps1)
           $env:Path = "$HOME\.local\bin;$env:Path"
           # Attempt sync
-          uv sync -y || Write-Host 'uv sync failed, continuing'
+          uv sync || Write-Host 'uv sync failed, continuing'
 
       - name: Run UnitRefine via `uv` (Linux/macOS)
         if: runner.os != 'Windows'
