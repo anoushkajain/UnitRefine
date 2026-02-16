@@ -45,7 +45,7 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
 
           # Attempt to sync the repo via uv (may install dependencies)
-          uv sync || true
+          uv sync --dev || true
 
       - name: Install `uv` (Windows)
         if: runner.os == 'Windows'
@@ -54,19 +54,7 @@ jobs:
           Invoke-Expression (irm https://astral.sh/uv/install.ps1)
           $env:Path = "$HOME\.local\bin;$env:Path"
           # Attempt sync
-          uv sync || Write-Host 'uv sync failed, continuing'
-
-      - name: Run UnitRefine via `uv` (Linux/macOS)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          uv run unitrefine --project_folder ci_test_project || true
-
-      - name: Run UnitRefine via `uv` (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          uv run unitrefine --project_folder ci_test_project || Write-Host 'uv run failed, continuing'
+          uv sync --dev || Write-Host 'uv sync failed, continuing'
 
       - name: Verify package installation and fallback to pip if needed (Linux/macOS)
         if: runner.os != 'Windows'
@@ -77,11 +65,24 @@ jobs:
           print('unitrefine import OK')
           PY
 
+      - name: Run headless GUI smoke test (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          # run a single headless GUI smoke test via uv
+          uv run python -m pytest -q tests/test_gui_headless.py::test_train_window_headless
+
       - name: Verify package installation and fallback to pip if needed (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           uv run python -c "import unitrefine; print('unitrefine import OK')" || Write-Host 'verify failed, continuing'
+
+      - name: Run headless GUI smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          uv run python -m pytest -q tests/test_gui_headless.py::test_train_window_headless
 
       - name: Execute example Jupyter notebook (Linux/macOS)
         if: runner.os != 'Windows'
