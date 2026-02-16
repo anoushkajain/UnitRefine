@@ -10,3 +10,5 @@ Additionally, this repository includes **Jupyter Notebooks** with detailed step-
 2. **Train your own classifiers** in train model folder.
 
 Each section contains 2 example notebooks to use UnitRefine with either a sorting analyzer object from Spikeinterface or with pre-computed metrics that can be loaded as a .csv file. Sorting analyzer objects are recommended and also compatible with the UnitRefine GUI workflow whereas pre-computed metrics allow integrating UnitRefine into already established custom workflows.
+
+To train and evaluate new or pre-trained models with the UnitRefine GUI, refer to our [GUI tutorial](https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine).

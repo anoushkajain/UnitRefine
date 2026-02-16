@@ -66,7 +66,7 @@ Click the Train button to train a model using your curated dataset.
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/train_and_load_gui.JPG" width="500"/>
 </p>
 
-This will bring up a dialog to select the model type and pre-processing method. Our results from testing different models are described in the [UnitRefine paper](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2.full) but for most dataset, the default settings (random forest classifer with nearest-neighbor imputation and standard scaler) should work well and can be trained very quickly. Click 'Train models' to start training.
+This will bring up a dialog to select the model type and pre-processing method. Our results from testing different models are described in the [UnitRefine paper](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2.full) but for most dataset, the default settings (random forest classifer with nearest-neighbor imputation and standard scaler) should work well and can be trained very quickly. Click "Train models" to start training.
 
 <p align="center">
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/model_training_example.jpg" width="500"/>
@@ -79,8 +79,8 @@ Running RandomForestClassifier with imputation knn and scaling StandardScaler()
     Precision: 
     Recall: 
 ```
-If your balanced accuracy is above 75%, your labeling is generally consistent and reliable. You can inspect the model output looking at inspect button.
-If balanced accuracy is lower, we recommend relabeling the cluster and retraining the model to improve results. You can simply use the Curate button again to label additional clusters and train a new model to check if this improves the performance.
+If your balanced accuracy is above 75%, your labeling is generally consistent and reliable. You can inspect the model output with the "Inspect" button.
+If balanced accuracy is lower, we recommend relabeling the cluster and retraining the model to improve results. You can simply use the "Curate" button again to label additional clusters and train a new model to check if this improves the performance.
 
 Alternatively, you can use retraining with active learning to automatically identify clusters with low model prediction confidence. This enhances the re-training efficency by selectively providing training data for clusters that the model can not predict already. You can set the percentage of clusters that should be staged for labeling (default is 20%) and press the "Relabel" button to curate low-confidence clusters.
 
