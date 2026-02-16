@@ -9,14 +9,14 @@ UnitRefine is agnostic to probe type, species, brain region, and spike sorter, a
 UnitRefine provides several [pre-trained models](https://huggingface.co/AnoushkaJain3) from different species and experimental setups. Each model folder includes the curated feature matrix it was trained on, where rows correspond to clusters and columns to unit features. In our [preprint](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2) we show that UnitRefine can reliably identify human-labeled Single-Unit Activity (SUA) across multiple datasets, probe types, and species.
 
 
-| Dataset              | Species        | Probe type      | # Recordings | Spike sorter         | Pipeline       | Output format           | Source                  |
-| -------------------- | -------------- | --------------- | ------------ | -------------------- | -------------- | ----------------------- | ----------------------- |
-| Base dataset         | Mouse          | Neuropixels 1.0 | 11           | Kilosort 2.5         | SpikeInterface | Kilosort folders        | UnitRefine base dataset |
-| Allen dataset        | Mouse          | Neuropixels 1.0 | 4            | Kilosort 4           | Allen ecephys  | `.zarr`                 | Allen Institute         |
-| IBL dataset          | Mouse          | Neuropixels 1.0 | 8            | IBL sorter (PyKilosort 2.5) | IBL pipeline   | Kilosort-style outputs  | IBL                     |
-| Mole rat dataset     | Naked mole rat | Neuropixels 2.0 | 4            | Kilosort 4           | SpikeInterface | SortingAnalyzer objects | Shirdhankar et al. 2025 |
-| Monkey dataset       | Rhesus macaque | Utah array      | 11           | Kilosort 4           | Custom         | Kilosort folders        | Chen et al. 2022        |
-| Human dataset        | Human          | Behnke–Fried    | 12           | Combinato            | Combinato      | Combinato output        | Gerken et al. 2025      |
+| Dataset          | Species        | Probe type      | Spike sorter                | Pipeline       | Output format           | Source                  |
+| ---------------- | -------------- | --------------- | --------------------------- | -------------- | ----------------------- | ----------------------- |
+| Base dataset     | Mouse          | Neuropixels 1.0 | Kilosort 2.5                | SpikeInterface | Kilosort folders        | UnitRefine base dataset |
+| IBL dataset      | Mouse          | Neuropixels 1.0 | IBL sorter (PyKilosort 2.5) | IBL pipeline   | Kilosort outputs        | IBL                     |
+| Allen dataset    | Mouse          | Neuropixels 2.0 | Kilosort 4                  | Allen ecephys  | .zarr files             | Allen Institute         |
+| Mole rat dataset | Naked mole rat | Neuropixels 2.0 | Kilosort 4                  | SpikeInterface | SortingAnalyzer objects | Shirdhankar et al. 2025 |
+| Monkey dataset   | Rhesus macaque | Utah array      | Kilosort 4                  | Custom         | Kilosort folders        | Chen et al. 2022        |
+| Human dataset    | Human          | Behnke–Fried electrodes    | Combinato                   | Combinato      | Combinato output        | Gerken et al. 2025      |
 
 
 All datasets are publicly available [here](https://figshare.com/articles/dataset/Curated_dataset/28282799)
