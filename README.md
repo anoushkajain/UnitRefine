@@ -16,30 +16,71 @@ UnitRefine provides [pre-trained models](https://huggingface.co/AnoushkaJain3). 
 | Mole rat recordings          | Neuropixels 2.0            | 4            | Kilosort 4           | Mole rat (Shirdhankar et al. 2025) |
 | Nonhuman primate recordings  | Utah array                 | 11           | Kilosort 4 | Macaque (Xing Chen et al. 2022)|
 | Human intracranial recordings| Behnke–Fried electrodes    | 12           | Combinato (Niediek et al., 2016) | Human |
+
+Datasets are publically avaialble [here](https://figshare.com/articles/dataset/Curated_dataset/28282799)
+
 ---
 ## Installation
-To use UnitRefine, install SpikeInterface (≥ 0.102).
+
+1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.<br>
+(Note for Windows users: If you have issues installing uv, please check out the FAQ section.)
+
+2. Use Git (https://git-scm.com/install) to clone the UnitRefine repository and move into the repo folder to launch the GUI.
+
 ```bash
-pip install spikeinterface
-```
-We provide a **UnitRefine GUI** that simplifies unit curation, model training, loading, and relabeling.
+git clone https://github.com/anoushkajain/UnitRefine.git
+cd UnitRefine
+``` 
+3. Install dependencies
+
+```bash
+uv sync
+``` 
+---
+
+Now you can explore detailed **Jupyter Notebooks** in [section](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial) with detailed step-by-step tutorials on how to:  
+1. Apply pre-trained models.  
+2. Train your own classifiers. 
+
+Also have a look at [SpikeInterface Tutorials](https://spikeinterface.readthedocs.io/en/latest/tutorials_custom_index.html#automated-curation-tutorials)  
+
+---
+## Launching the GUI
+We provide a UnitRefine GUI that simplifies unit curation, model training, loading, and relabeling.
+
+Inside UnitRefine repo, create a new project.
+
+```bash
+uv run unitrefine --project_folder my_new_project
+``` 
+(Note: you must be in the UnitRefine folder that you've cloned from Github when you run this command.)
+
+A window should pop up that looks something like this:
 
 <p align="center">
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/unitrefine_gui.JPG" width="500"/>
 </p>
 
-For detailed instructions and usage examples, please refer to the documentation [here](https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/README.md).
-
 ---
-## Tutorials  
-Also refer to the automated curation tutorials available in the SpikeInterface documentation:  
-[Automated Curation Tutorials](https://spikeinterface.readthedocs.io/en/latest/tutorials_custom_index.html#automated-curation-tutorials)  
+## System requirements
 
-Additionally, this repository includes **Jupyter Notebooks** in [section](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial) with detailed step-by-step tutorials on how to:  
-1. Apply pre-trained models.  
-2. Train your own classifiers.   
+### Hardware requiremnts
+UnitRefine requires only a standard computer with enough RAM to support the in-memory operations.
 
----
+### Software requirements
+
+### OS Requirements
+**Tested on:** Linux • macOS • Windows  
+**Python:** 3.11+
+
+### Core dependencies (installed automatically)
+- NumPy, Pandas  
+- scikit-learn  
+- SpikeInterface + spikeinterface-gui  
+- PyQt5 (GUI backend)  
+- Hugging Face Hub (model loading)  
+- skops (model serialization)
+
 ## Citation
 
 If you find **UnitRefine** useful in your research, please cite our preprint: https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2
