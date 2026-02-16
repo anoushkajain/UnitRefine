@@ -11,12 +11,12 @@ UnitRefine provides several [pre-trained models](https://huggingface.co/Anoushka
 
 | Dataset              | Species        | Probe type      | # Recordings | Spike sorter         | Pipeline       | Output format           | Source                  |
 | -------------------- | -------------- | --------------- | ------------ | -------------------- | -------------- | ----------------------- | ----------------------- |
-| curated_base_dataset | Mouse          | Neuropixels 1.0 | 11           | Kilosort 2.5         | SpikeInterface | Kilosort folders        | UnitRefine base dataset |
-| Allen_dataset        | Mouse          | Neuropixels 1.0 | 4            | Kilosort 4           | Allen ecephys  | `.zarr`                 | Allen Institute         |
-| IBL_dataset          | Mouse          | Neuropixels 1.0 | 8            | IBL sorter (PyKilosort 2.5) | IBL pipeline   | Kilosort-style outputs  | IBL                     |
-| mole_rat_dataset     | Naked mole rat | Neuropixels 2.0 | 4            | Kilosort 4           | SpikeInterface | SortingAnalyzer objects | Shirdhankar et al. 2025 |
-| monkey_dataset       | Rhesus macaque | Utah array      | 11           | Kilosort 4           | Custom         | Kilosort folders        | Chen et al. 2022        |
-| human_dataset        | Human          | Behnke–Fried    | 12           | Combinato            | Combinato      | Combinato output        | Gerken et al. 2025      |
+| Base dataset         | Mouse          | Neuropixels 1.0 | 11           | Kilosort 2.5         | SpikeInterface | Kilosort folders        | UnitRefine base dataset |
+| Allen dataset        | Mouse          | Neuropixels 1.0 | 4            | Kilosort 4           | Allen ecephys  | `.zarr`                 | Allen Institute         |
+| IBL dataset          | Mouse          | Neuropixels 1.0 | 8            | IBL sorter (PyKilosort 2.5) | IBL pipeline   | Kilosort-style outputs  | IBL                     |
+| Mole rat dataset     | Naked mole rat | Neuropixels 2.0 | 4            | Kilosort 4           | SpikeInterface | SortingAnalyzer objects | Shirdhankar et al. 2025 |
+| Monkey dataset       | Rhesus macaque | Utah array      | 11           | Kilosort 4           | Custom         | Kilosort folders        | Chen et al. 2022        |
+| Human dataset        | Human          | Behnke–Fried    | 12           | Combinato            | Combinato      | Combinato output        | Gerken et al. 2025      |
 
 
 All datasets are publicly available [here](https://figshare.com/articles/dataset/Curated_dataset/28282799)
