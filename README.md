@@ -35,7 +35,7 @@ In our [preprint](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2) w
 | Dataset          | Species        | Probe type                 | Spike sorter                | Pipeline       | Output format           | Source |
 |------------------|----------------|----------------------------|-----------------------------|----------------|-------------------------|--------|
 | Base dataset     | Mouse          | Neuropixels 1.0            | Kilosort 2.5                | SpikeInterface | Kilosort folders        | UnitRefine base dataset |
-| IBL dataset      | Mouse          | Neuropixels 1.0            | IBL sorter (PyKilosort 2.5) | IBL pipeline   | SortingAnalyzer objects | IBL     |
+| IBL dataset      | Mouse          | Neuropixels 1.0            | IBL sorter (PyKilosort 2.5) | IBL pipeline   | SortingAnalyzer objects | International Brain Laboratory     |
 | Allen dataset    | Mouse          | Neuropixels 2.0            | Kilosort 4                  | Allen ecephys  | `.zarr` files           | Allen Institute |
 | Mole rat dataset | Naked mole rat | Neuropixels 2.0            | Kilosort 4                  | SpikeInterface | SortingAnalyzer objects | [Shirdhankar et al., 2025](https://doi.org/10.64898/2025.12.15.693140) |
 | Monkey dataset   | Rhesus macaque | Utah array                 | Kilosort 4                  | Custom         | Kilosort folders        | [Chen et al., 2022](https://www.nature.com/articles/s41597-022-01180-1) |
