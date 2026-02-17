@@ -3,6 +3,10 @@
 **UnitRefine** is an open-source machine-learning framework for automated spike-sorting curation in electrophysiological experiments.  
 It strongly reduces the need for manual curation of spike-sorting results by leveraging supervised classifiers trained on human-labeled data to predict **noise**, **multi-unit activity (MUA)**, and **single-unit activity (SUA)** in sorted clusters.
 
+<p align="center">
+  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/unit_types_example.jpg" width="500"/>
+</p>
+
 UnitRefine is fully integrated into [SpikeInterface](https://github.com/SpikeInterface/spikeinterface), enabling users to:
 
 - Apply **pre-trained curation models** to new recordings  
@@ -14,10 +18,6 @@ UnitRefine is agnostic to probe type, species, brain region, or spike sorter and
 
 A user-friendly GUI supports end-to-end workflows including curation (using [SpikeInterface-GUI](https://github.com/SpikeInterface/spikeinterface-gui/) for cluster visualization), training, validation, model loading, and retraining.  
 The GUI also supports active learning by highlighting uncertain clusters, allowing users to iteratively improve model performance through targeted relabeling.
-
-<p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/unit_types_example.jpg" width="500"/>
-</p>
 
 ---
 
