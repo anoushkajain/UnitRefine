@@ -1,30 +1,35 @@
 # UnitRefine: A Community Toolbox for Automated Spike Sorting Curation  
 
-**UnitRefine** is a machine-learning toolbox designed to streamline spike sorting curation by reducing the need for manual intervention. 
-It integrates seamlessly with [SpikeInterface](https://github.com/SpikeInterface/spikeinterface) and supports both pre-trained models and custom model training.
-UnitRefine is agnostic to probe type, species, brain region, and spike sorter, and includes a user-friendly GUI (using [SpikeInterface-GUI](https://github.com/SpikeInterface/spikeinterface-gui/) as the frontend to visualize cluster features) for curation, training, validation, and retraining. The GUI also supports active learning, allowing users to iteratively improve model performance through targeted relabeling.
+**UnitRefine** is an open-source machine-learning framework for automated spike-sorting curation in electrophysiological experiments.  
+It strongly reduces the need for manual curation of spike-sorting results by leveraging supervised classifiers trained on human-labeled data to predict **noise**, **multi-unit activity (MUA)**, and **single-unit activity (SUA)** in sorted clusters.
 
-## Available Pre-trained Models
+UnitRefine is fully integrated into [SpikeInterface](https://github.com/SpikeInterface/spikeinterface), enabling users to:
 
-UnitRefine provides several [pre-trained models](https://huggingface.co/AnoushkaJain3) from different species and experimental setups. Each model folder includes the curated feature matrix it was trained on, where rows correspond to clusters and columns to unit features. In our [preprint](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2) we show that UnitRefine can reliably identify human-labeled Single-Unit Activity (SUA) across multiple datasets, probe types, and species.
+- Apply **pre-trained curation models** to new recordings  
+- Train and fine-tune **custom models** on their own curated experimental data  
+- Iteratively improve models using **active learning**  
+- Share reproducible models via the Hugging Face Hub  
 
+UnitRefine is agnostic to probe type, species, brain region, or spike sorter and generalizes to previously unseen datasets. It has been validated across high-density probes, Utah arrays, and intracranial human recordings from multiple laboratories and species.
 
-| Dataset          | Species        | Probe type                 | Spike sorter                | Pipeline       | Output format           | Source |
-|------------------|----------------|----------------------------|-----------------------------|----------------|-------------------------|--------|
-| Base dataset     | Mouse          | Neuropixels 1.0            | Kilosort 2.5                | SpikeInterface | Kilosort folders        | UnitRefine base dataset |
-| IBL dataset      | Mouse          | Neuropixels 1.0            | IBL sorter (PyKilosort 2.5) | IBL pipeline   | Kilosort outputs        | IBL |
-| Allen dataset    | Mouse          | Neuropixels 2.0            | Kilosort 4                  | Allen ecephys  | `.zarr` files           | Allen Institute |
-| Mole rat dataset | Naked mole rat | Neuropixels 2.0            | Kilosort 4                  | SpikeInterface | SortingAnalyzer objects | [Shirdhankar et al., 2025](https://doi.org/10.64898/2025.12.15.693140) |
-| Monkey dataset   | Rhesus macaque | Utah array                 | Kilosort 4                  | Custom         | Kilosort folders        | [Chen et al., 2022](https://www.nature.com/articles/s41597-022-01180-1) |
-| Human dataset    | Human          | Behnke–Fried electrodes    | Combinato                   | Combinato      | Combinato output        | [Gerken et al., 2025](https://elifesciences.org/reviewed-preprints/106758) |
-
-
-All datasets are publicly available [here](https://figshare.com/articles/dataset/Curated_dataset/28282799)
+A user-friendly GUI supports end-to-end workflows including curation (using [SpikeInterface-GUI](https://github.com/SpikeInterface/spikeinterface-gui/) for cluster visualization), training, validation, model loading, and retraining.  
+The GUI also supports active learning by highlighting uncertain clusters, allowing users to iteratively improve model performance through targeted relabeling.
 
 ---
+
+## Typical Workflow
+
+1. Run spike sorting (e.g. Kilosort) and compute metrics with SpikeInterface.  
+2. Apply a pre-trained UnitRefine model **or** label a subset of clusters manually.  
+3. Train or fine-tune a classifier.  
+4. Automatically curate the full dataset.  
+5. Optionally refine using active learning.  
+
+---
+
 ## Installation
 
-1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.<br>
+1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/) (recommended python package manager).  
 (Note for Windows users: If you have issues installing uv, please check out the FAQ section.)
 
 2. Use Git (https://git-scm.com/install) to clone the UnitRefine repository. Then move into the repo folder to install dependencies and run the GUI.
@@ -40,16 +45,35 @@ uv sync
 ``` 
 ---
 
-Now you can explore detailed **Jupyter Notebooks** in [this section](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial) with detailed step-by-step tutorials on how to:  
-1. Apply pre-trained models.  
-2. Train your own classifiers. 
+## Tutorials
 
-This allows integration of UnitRefine into existing analysis workflows, either using pre-computed .csv files of cluster metrics or SpikeInterface sorting analyzer objects.
-For more details, also have a look at the [SpikeInterface tutorials](https://spikeinterface.readthedocs.io/en/latest/tutorials_custom_index.html#automated-curation-tutorials) on automated curation. 
+We provide detailed **Jupyter Notebook tutorials** to help you get started with UnitRefine.
+
+Tutorials are available in the repository under [`UnitRefine/tutorial`](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial)
+
+The notebooks demonstrate how to:
+
+1. **Apply pre-trained models** to automatically curate spike-sorted datasets  
+2. **Train custom classifiers** using manually curated labels  
+3. Use pre-computed cluster metrics stored as `.csv` files  
+4. Integrate UnitRefine directly with SpikeInterface `SortingAnalyzer` objects  
+
+UnitRefine supports two main workflows:
+
+- **Analyzer-based workflow (recommended)**  
+  Uses SpikeInterface `SortingAnalyzer` objects for metric computation and ensures consistency with SpikeInterface pipelines.
+
+- **CSV-based workflow**  
+  Uses pre-computed cluster metrics stored as `.csv` files.  
+  This enables integration into custom pipelines outside of SpikeInterface.
+
+For additional background on automated curation within the SpikeInterface ecosystem, see the official  
+[SpikeInterface automated curation tutorials](https://spikeinterface.readthedocs.io/en/latest/tutorials_custom_index.html#automated-curation-tutorials).
 
 ---
 ## Launching the GUI
 We provide a UnitRefine GUI that simplifies unit curation, model training, loading, and relabeling.  
+
 For detailed instructions and usage examples, please refer to the GUI documentation [here](https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/README.md).
 
 To run the GUI inside the UnitRefine repo, create a new project.
@@ -57,15 +81,53 @@ To run the GUI inside the UnitRefine repo, create a new project.
 ```bash
 uv run unitrefine --project_folder my_new_project
 ``` 
-(Note: you must be in the UnitRefine folder that you've cloned from GitHub when you run this command.)
+> **Important:** This command must be executed from the root folder of the cloned UnitRefine repository.
 
+This will create a new project folder and launch the UnitRefine GUI.
 A window should pop up that looks something like this:
 
 <p align="center">
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/unitrefine_gui.JPG" width="500"/>
 </p>
 
+Within the GUI, users can:
+
+- Visualize cluster waveforms, amplitudes, correlograms, and quality metrics  
+- Manually assign or correct cluster labels  
+- Train new models using curated labels  
+- Load and apply pre-trained models  
+- Validate model predictions  
+- Retrain models based on updated labels  
+
+The GUI also supports active learning by highlighting clusters with low prediction confidence, enabling efficient and targeted relabeling to improve model performance.
+
 ---
+## Available Pre-trained Models
+UnitRefine provides several [pre-trained models](https://huggingface.co/AnoushkaJain3) from different species and experimental setups.
+
+Each model folder includes:
+
+- The trained classifier (`.skops` format)  
+- Model metadata  
+- The curated feature matrix used for training  
+
+In our [preprint](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2) we show that UnitRefine reliably identifies human-labeled Single-Unit Activity (SUA) across multiple datasets, probe types, and species.
+
+
+| Dataset          | Species        | Probe type                 | Spike sorter                | Pipeline       | Output format           | Source |
+|------------------|----------------|----------------------------|-----------------------------|----------------|-------------------------|--------|
+| Base dataset     | Mouse          | Neuropixels 1.0            | Kilosort 2.5                | SpikeInterface | Kilosort folders        | UnitRefine base dataset |
+| IBL dataset      | Mouse          | Neuropixels 1.0            | IBL sorter (PyKilosort 2.5) | IBL pipeline   | Kilosort outputs        | IBL |
+| Allen dataset    | Mouse          | Neuropixels 2.0            | Kilosort 4                  | Allen ecephys  | `.zarr` files           | Allen Institute |
+| Mole rat dataset | Naked mole rat | Neuropixels 2.0            | Kilosort 4                  | SpikeInterface | SortingAnalyzer objects | [Shirdhankar et al., 2025](https://doi.org/10.64898/2025.12.15.693140) |
+| Monkey dataset   | Rhesus macaque | Utah array                 | Kilosort 4                  | Custom         | Kilosort folders        | [Chen et al., 2022](https://www.nature.com/articles/s41597-022-01180-1) |
+| Human dataset    | Human          | Behnke–Fried electrodes    | Combinato                   | Combinato      | Combinato output        | [Gerken et al., 2025](https://elifesciences.org/reviewed-preprints/106758) |
+
+
+All datasets are also publicly available [here](https://figshare.com/articles/dataset/Curated_dataset/28282799)
+
+---
+
 ## System requirements
 
 ### Hardware requirements
@@ -85,9 +147,9 @@ UnitRefine requires only a standard computer with enough RAM to support the in-m
 - skops (model serialization)
 
 ## Citation
-
 If you find **UnitRefine** useful in your research, please cite our preprint: https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2
 
+## License
 This software is released under the MIT license.
 
 ## Acknowledgements
