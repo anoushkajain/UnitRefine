@@ -1,7 +1,7 @@
 # UnitRefine: A Community Toolbox for Automated Spike Sorting Curation  
 
 **UnitRefine** is an open-source machine-learning framework for automated spike-sorting curation in electrophysiological experiments.  
-It strongly reduces the need for manual curation of spike-sorting results by leveraging supervised classifiers trained on human-labeled data to predict **noise**, **multi-unit activity (MUA)**, and **single-unit activity (SUA)** in sorted clusters.
+It strongly reduces the need for manual curation of spike-sorting results by leveraging supervised classifiers trained on human-labeled data to predict **single-unit activity (SUA)**, **multi-unit activity (MUA)**, and **noise** in sorted clusters.
 
 <p align="center">
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/unit_types_example.jpg" width="500"/>
