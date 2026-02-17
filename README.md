@@ -15,6 +15,10 @@ UnitRefine is agnostic to probe type, species, brain region, or spike sorter and
 A user-friendly GUI supports end-to-end workflows including curation (using [SpikeInterface-GUI](https://github.com/SpikeInterface/spikeinterface-gui/) for cluster visualization), training, validation, model loading, and retraining.  
 The GUI also supports active learning by highlighting uncertain clusters, allowing users to iteratively improve model performance through targeted relabeling.
 
+<p align="center">
+  <img src="docs/images/unit_types_example.jpg" width="800"/>
+</p>
+
 ---
 
 ## Typical Workflow
