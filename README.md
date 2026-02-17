@@ -16,7 +16,7 @@ A user-friendly GUI supports end-to-end workflows including curation (using [Spi
 The GUI also supports active learning by highlighting uncertain clusters, allowing users to iteratively improve model performance through targeted relabeling.
 
 <p align="center">
-  <img src="docs/images/unit_types_example.jpg" width="800"/>
+  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/unit_types_example.jpg" width="500"/>
 </p>
 
 ---
