@@ -99,6 +99,15 @@ For additional background on automated curation within the SpikeInterface ecosys
 [SpikeInterface automated curation tutorials](https://spikeinterface.readthedocs.io/en/latest/tutorials_custom_index.html#automated-curation-tutorials).
 
 ---
+## Model Interpretability with SHAP
+
+For transparent and reproducible model interpretation (as described in the UnitRefine paper), we provide a dedicated notebook:
+
+[`SHAP_plots.ipynb`](UnitRefine\plots\SHAP_plots.ipynb)
+
+This notebook demonstrates how to compute SHAP values, evaluate feature importance stability across random seeds, select the best-performing model, and generate confusion matrices for reproducible model interpretation.
+
+---
 ## Launching the GUI
 We provide a UnitRefine GUI that simplifies unit curation, model training, loading, and relabeling.  
 
