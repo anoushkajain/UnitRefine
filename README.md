@@ -191,12 +191,9 @@ For Windows users trying to install uv, try doing
 ```bash
 pip install uv
 ```
-If this does not work, then run the following command in your command prompt:
- 
-```bash
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
+If this does not work, please follow the instructions on the uv [Windows installation page.](https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_2)
 
+ 
 **2. Number of labels**
 
 You need to provide at least 6 labels for each used class (SUA, MUA, Noise) to prevent errors during model fitting (e.g. cross-validation and class balancing). You can also use only SUA and Noise labels to create a binary instead of a 3-class classifier. As a starting model with decent performance you should label at least 10% of the data (should be more than 50 clusters in total).
