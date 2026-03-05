@@ -19,6 +19,11 @@ UnitRefine is agnostic to probe type, species, brain region, or spike sorter and
 A user-friendly GUI supports end-to-end workflows including curation (using [SpikeInterface-GUI](https://github.com/SpikeInterface/spikeinterface-gui/) for cluster visualization), training, validation, model loading, and retraining.  
 The GUI also supports active learning by highlighting uncertain clusters, allowing users to iteratively improve model performance through targeted relabeling.
 
+## Preprint
+To learn more about **UnitRefine** and how to use it in your projects, please see our [preprint](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2).
+
+If **UnitRefine** is useful for your research, please consider citing our work.
+
 ---
 ## Available Pre-trained Models
 UnitRefine provides several [pre-trained models](https://huggingface.co/AnoushkaJain3) from different species and experimental setups.
@@ -156,9 +161,6 @@ UnitRefine requires only a standard computer with enough RAM to support the in-m
 - PyQt5 (GUI backend)  
 - Hugging Face Hub (model loading)  
 - skops (model serialization)
-
-## Citation
-If you find **UnitRefine** useful in your research, please cite our preprint: https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2
 
 ## License
 This software is released under the MIT license.
