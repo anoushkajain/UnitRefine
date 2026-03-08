@@ -139,10 +139,7 @@ For windows users trying to install uv, try doing
 ```bash
 pip install uv
 ```
-if this doesn't work then type the following on your cmd. 
-```bash
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
+If this does not work, please follow the instructions on the uv [Windows installation page.](https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_2)
 
 **2. Number of labels**
 
