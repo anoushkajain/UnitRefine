@@ -24,7 +24,7 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
     re_labelled_unit_ids = []
     re_labels = []
 
-    for row in curation_dict['manual_labels']:
+    for row in window.controller.curation_data['manual_labels']:
         
         if row.get('labels') is None:
             if row.get('quality') is not None:
@@ -130,6 +130,7 @@ if relabel:
     for unit_id in sorting_analyzer.unit_ids:
         decision = {"unit_id": unit_id, 
                     "model": model_decisions[model_decisions['unit_id'] == unit_id]['prediction'].values,
+                    "quality": model_decisions[model_decisions['unit_id'] == unit_id]['prediction'].values,
                     }
         if len(decision['model']) > 0:
             manual_labels.append(decision)
@@ -149,7 +150,7 @@ controller = Controller(
     curation_data=curation_dict,
     extra_unit_properties=extra_unit_properties,
     displayed_unit_properties=['model', 'quality', 'confidence', 'firing_rate', 'snr', 'x', 'y', 'rp_violations'],
-    skip_extensions=['waveforms', 'principal_components', 'spike_locations', 'isi_histograms', 'template_similarity'],
+    skip_extensions=['waveforms', 'principal_components', 'spike_locations', 'isi_histograms', 'template_similarity', 'amplitudescalings'],
 )
 
 layout_dict={'zone1': ['unitlist', 'mainsettings'], 'zone2': [], 'zone3': ['waveform'], 'zone4': ['correlogram'], 'zone5': ['spikeamplitude'], 'zone6': [], 'zone7': [], 'zone8': ['spikerate']}

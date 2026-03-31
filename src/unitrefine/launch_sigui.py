@@ -23,7 +23,7 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, save_folder, an
     labelled_unit_ids = []
     labels = []
 
-    for row in curation_dict['manual_labels']:
+    for row in window.controller.curation_data['manual_labels']:
         labelled_unit_ids.append(int(row['unit_id']))
         if row.get('labels') is None:
             labels.append(row['quality'][0])
