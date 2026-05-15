@@ -75,7 +75,7 @@ This will bring up a dialog to select the model type and pre-processing method. 
 In the terminal, you will see logs from model training, for example:
 ```bash
 Running RandomForestClassifier with imputation knn and scaling StandardScaler()
-    Balanced Accuray: 
+    Balanced Accuracy: 
     Precision: 
     Recall: 
 ```
@@ -88,7 +88,7 @@ Alternatively, you can use retraining with active learning to automatically iden
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/re-label.JPG" width="500"/>
 </p>
 
-After curation, press the "Retrain model" button to train a new model that includes the additional low-confidence labels. This model will be saved under a new name, e.g. model_1_retrained_01. You can repeat relabeling and retraining as often as you want. Each step will increase the number of available labels and create a new model version (labeld model_1_retrained_02, etc) until a strong model has been found. In our experience model the performance should clearly improve when labeling about 10% of the curated clusters and the total number of curated clusters should be at least 50 or more. Once you have a trained model with good balanced accuracy you can use it create cluster labels for any recording.
+After curation, press the "Retrain model" button to train a new model that includes the additional low-confidence labels. This model will be saved under a new name, e.g. model_1_retrained_01. You can repeat relabeling and retraining as often as you want. Each step will increase the number of available labels and create a new model version (labeled model_1_retrained_02, etc) until a strong model has been found. In our experience model the performance should clearly improve when labeling about 10% of the curated clusters and the total number of curated clusters should be at least 50 or more. Once you have a trained model with good balanced accuracy you can use it create cluster labels for any recording.
 
 ## Loading Your Model
 

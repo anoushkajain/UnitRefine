@@ -304,7 +304,7 @@ class TrainWindow(QtWidgets.QMainWindow):
             )
 
             balanced_accuracy, precision, recall = pd.read_csv(folder / 'model_accuracies.csv')[['balanced_accuracy', 'precision', 'recall']].values[0]
-            print(f"\nBest model stats:\n    Balanced Accuray: {balanced_accuracy}\n    Precision: {precision}\n    Recall: {recall}")
+            print(f"\nBest model stats:\n    Balanced Accuracy: {balanced_accuracy}\n    Precision: {precision}\n    Recall: {recall}")
 
         finally:
             QtWidgets.QApplication.restoreOverrideCursor()
