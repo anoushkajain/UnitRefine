@@ -45,5 +45,9 @@ unitrefine = "unitrefine.main:main"
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file
 skip = '.git,.gitignore,.gitattributes,*.lock'
 check-hidden = true
+# Ignore base64-encoded images embedded in Jupyter notebooks
 ignore-regex = '^\s*"image/\S+": ".*'
-# ignore-words-list = ''
+# fpr - False Positive Rate variable (sklearn roc_curve output)
+# abou - part of contributor name "Sacha Abou Rachid"
+# sortings - SpikeInterface domain term (plural of "sorting" / variable name)
+ignore-words-list = 'fpr,abou,sortings'
