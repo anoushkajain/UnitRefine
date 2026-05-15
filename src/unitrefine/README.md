@@ -59,6 +59,11 @@ You can also navigate between units using Ctr + up/down arrows.
 Once you have finished labeling some units, close the SpikeInterface GUI. Your labels are automatically saved in the project folder.
 To train a model, you should label at least around 10% of the clusters in the recording to achieve decent prediction accuracy.
 
+Here is an example of what the SpikeInterface GUI looks like with labeled units:
+<p align="center">
+  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/si-gui.JPG" width="500"/>
+</p>
+
 ## Train a model
 
 Click the Train button to train a model using your curated dataset.
