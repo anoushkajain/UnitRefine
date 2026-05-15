@@ -282,7 +282,7 @@ class CurationModelTrainer:
         self.process_test_data_for_classification()
 
     def _check_metrics_parameters(self, analyzers, enforce_metric_params):
-        """Checks that the metrics of each analyzer have been calcualted using the same parameters"""
+        """Checks that the metrics of each analyzer have been calculated using the same parameters"""
 
         extension_names = ["quality_metrics", "template_metrics"]
 
