@@ -84,7 +84,7 @@ class ModelBasedClassification:
         export_to_phy : bool, default: False.
             Whether to export the classified units to Phy format. Default is False.
         enforce_metric_params : bool, default: False
-            If True and the parameters used to compute the metrics in `sorting_analyzer` are different than the parmeters
+            If True and the parameters used to compute the metrics in `sorting_analyzer` are different than the parameters
             used to compute the metrics used to train the model, this function will raise an error. Otherwise, a warning is raised.
 
         Returns
@@ -164,7 +164,7 @@ class ModelBasedClassification:
         Parameters
         ----------
         enforce_metric_params : bool, default: False
-            If True and the parameters used to compute the metrics in `sorting_analyzer` are different than the parmeters
+            If True and the parameters used to compute the metrics in `sorting_analyzer` are different than the parameters
             used to compute the metrics used to train the model, this function will raise an error. Otherwise, a warning is raised.
         model_info : dict, default: None
             Dictionary of model info containing provenance of the model.
@@ -246,7 +246,7 @@ def auto_label_units(
     ----------
     sorting_analyzer : SortingAnalyzer
         The sorting analyzer object containing the spike sorting results.
-    model_folder : str or Path, defualt: None
+    model_folder : str or Path, default: None
         The path to the folder containing the model
     repo_id : str | Path, default: None
         Hugging face repo id which contains the model e.g. 'username/model'
@@ -263,7 +263,7 @@ def auto_label_units(
     trusted : list of str, default: None
         Passed to skops.load. The object will be loaded only if there are only trusted objects and objects of types listed in trusted in the dumped file.
     enforce_metric_params : bool, default: False
-            If True and the parameters used to compute the metrics in `sorting_analyzer` are different than the parmeters
+            If True and the parameters used to compute the metrics in `sorting_analyzer` are different than the parameters
             used to compute the metrics used to train the model, this function will raise an error. Otherwise, a warning is raised.
 
 
@@ -306,7 +306,7 @@ def load_model(model_folder=None, repo_id=None, model_name=None, trust_model=Fal
 
     Parameters
     ----------
-    model_folder : str or Path, defualt: None
+    model_folder : str or Path, default: None
         The path to the folder containing the model
     repo_id : str | Path, default: None
         Hugging face repo id which contains the model e.g. 'username/model'

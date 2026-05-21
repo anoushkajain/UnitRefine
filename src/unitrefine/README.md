@@ -71,7 +71,7 @@ Click the Train button to train a model using your curated dataset.
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/train_and_load_gui.JPG" width="500"/>
 </p>
 
-This will bring up a dialog to select the model type and pre-processing method. Our results from testing different models are described in the [UnitRefine paper](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2.full) but for most dataset, the default settings (random forest classifer with nearest-neighbor imputation and standard scaler) should work well and can be trained very quickly. Click "Train models" to start training.
+This will bring up a dialog to select the model type and pre-processing method. Our results from testing different models are described in the [UnitRefine paper](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2.full) but for most dataset, the default settings (random forest classifier with nearest-neighbor imputation and standard scaler) should work well and can be trained very quickly. Click "Train models" to start training.
 
 <p align="center">
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/model_training_example.jpg" width="500"/>
@@ -80,20 +80,20 @@ This will bring up a dialog to select the model type and pre-processing method. 
 In the terminal, you will see logs from model training, for example:
 ```bash
 Running RandomForestClassifier with imputation knn and scaling StandardScaler()
-    Balanced Accuray: 
+    Balanced Accuracy: 
     Precision: 
     Recall: 
 ```
 If your balanced accuracy is above 75%, your labeling is generally consistent and reliable. You can inspect the model output with the "Inspect" button.
 If balanced accuracy is lower, we recommend relabeling the cluster and retraining the model to improve results. You can simply use the "Curate" button again to label additional clusters and train a new model to check if this improves the performance.
 
-Alternatively, you can use retraining with active learning to automatically identify clusters with low model prediction confidence. This enhances the re-training efficency by selectively providing training data for clusters that the model can not predict already. You can set the percentage of clusters that should be staged for labeling (default is 20%) and press the "Relabel" button to curate low-confidence clusters.
+Alternatively, you can use retraining with active learning to automatically identify clusters with low model prediction confidence. This enhances the re-training efficiency by selectively providing training data for clusters that the model can not predict already. You can set the percentage of clusters that should be staged for labeling (default is 20%) and press the "Relabel" button to curate low-confidence clusters.
 
 <p align="center">
   <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/re-label.JPG" width="500"/>
 </p>
 
-After curation, press the "Retrain model" button to train a new model that includes the additional low-confidence labels. This model will be saved under a new name, e.g. model_1_retrained_01. You can repeat relabeling and retraining as often as you want. Each step will increase the number of available labels and create a new model version (labeld model_1_retrained_02, etc) until a strong model has been found. In our experience model the performance should clearly improve when labeling about 10% of the curated clusters and the total number of curated clusters should be at least 50 or more. Once you have a trained model with good balanced accuracy you can use it create cluster labels for any recording.
+After curation, press the "Retrain model" button to train a new model that includes the additional low-confidence labels. This model will be saved under a new name, e.g. model_1_retrained_01. You can repeat relabeling and retraining as often as you want. Each step will increase the number of available labels and create a new model version (labeled model_1_retrained_02, etc) until a strong model has been found. In our experience model the performance should clearly improve when labeling about 10% of the curated clusters and the total number of curated clusters should be at least 50 or more. Once you have a trained model with good balanced accuracy you can use it create cluster labels for any recording.
 
 ## Loading Your Model
 
