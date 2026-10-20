@@ -1,0 +1,41 @@
+# Conda environment for UnitRefine.
+#
+# Use this on Windows 11 systems with Smart App Control (SAC) enabled, where the
+# PyPI-based uv install is blocked because unsigned compiled extensions
+# (e.g. numcodecs' blosc .pyd) fail SAC's code-integrity check. Conda-forge
+# binaries carry publisher trust that PyPI wheels do not, so SAC lets them load.
+#
+# Install:
+#   conda env create -f environment.yml
+#   conda activate unitrefine
+#   pip install -e . --no-deps
+#
+# The `--no-deps` on the editable install is important: without it, pip will
+# re-pull UnitRefine's dependencies from PyPI (notably PyQt5), overwriting the
+# conda-forge binaries and breaking the Qt platform plugin.
+#
+# Then run `unitrefine --project_folder my_project` as usual.
+
+name: unitrefine
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - pip
+  - numcodecs=0.15.1
+  - numba>=0.61.0
+  - pandas>=2.2.3
+  - pyqtgraph>=0.13.7
+  - spikeinterface>=0.104.0
+  - pyyaml>=6.0.2
+  - scikit-learn=1.7.0
+  - skops>=0.11.0
+  - huggingface_hub>=0.35.0
+  - pyqt>=5.15,<6
+  - s3fs>=2025.10.0
+  - pip:
+      # Not on conda-forge; installed via pip into the conda env
+      - spikeinterface-gui>=0.13.0
+      - modal-python>=0.4.2.1
+  # UnitRefine itself is installed manually after `conda env create` with
+  # `pip install -e . --no-deps` (see header comment).

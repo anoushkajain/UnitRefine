@@ -76,6 +76,18 @@ cd UnitRefine
 ```bash
 uv sync
 ``` 
+
+### Alternative: conda install
+
+Recommended on Windows 11 with Smart App Control enabled, which blocks the PyPI-wheel install (see FAQ). An `environment.yml` is provided:
+
+```bash
+conda env create -f environment.yml
+conda activate unitrefine
+pip install -e . --no-deps
+``` 
+The `--no-deps` is required so pip does not overwrite the conda-forge Qt binaries.
+
 ---
 
 ## Tutorials
@@ -196,6 +208,10 @@ pip install uv
 If this does not work, please follow the instructions on the uv [Windows installation page.](https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_2)
 
  
-**2. Number of labels**
+**2. "Application Control policy has blocked this file" on Windows 11**
+
+Windows 11 Smart App Control blocks the unsigned `.pyd` files that ship in PyPI wheels (e.g. `numcodecs/blosc.pyd`). Use the conda install path above instead, or disable Smart App Control in Windows Security.
+
+**3. Number of labels**
 
 You need to provide at least 6 labels for each used class (SUA, MUA, Noise) to prevent errors during model fitting (e.g. cross-validation and class balancing). You can also use only SUA and Noise labels to create a binary instead of a 3-class classifier. As a starting model with decent performance you should label at least 10% of the data (should be more than 50 clusters in total).
