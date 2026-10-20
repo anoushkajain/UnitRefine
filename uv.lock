@@ -2386,7 +2386,7 @@ requires-dist = [
     { name = "s3fs", specifier = ">=2025.10.0" },
     { name = "scikit-learn", specifier = "==1.7" },
     { name = "skops", specifier = ">=0.11.0" },
-    { name = "spikeinterface", specifier = ">=0.104.0" },
+    { name = "spikeinterface", specifier = ">=0.105.0" },
     { name = "spikeinterface-gui", specifier = ">=0.13.0" },
 ]
 

@@ -12,8 +12,9 @@ import warnings
 
 import numpy as np
 import pandas as pd
+from spikeinterface.core import SortingAnalyzer
 from spikeinterface.curation import apply_curation
-from spikeinterface.curation.curation_model import SequentialCuration
+from spikeinterface.curation.curation_model import Curation, SequentialCuration
 
 # phy group / UnitRefine labels -> SpikeInterface-GUI quality labels
 QUALITY_LABELS = {"good": "good", "sua": "good", "mua": "MUA", "noise": "noise"}
@@ -22,6 +23,10 @@ UNLABELED = {"", "unsorted", "nan"}
 
 # cluster_*.tsv files that phy or export_to_phy write but that are not curation labels
 NON_LABEL_FILES = {"cluster_group.tsv", "cluster_info.tsv", "cluster_si_unit_ids.tsv", "cluster_channel_group.tsv"}
+
+
+class HardMergeRequired(RuntimeError):
+    """Raised when phy merges can only be applied as hard merges, which need the raw recording."""
 
 
 def phy_to_curation(phy_folder, sorting_or_analyzer):
@@ -148,7 +153,7 @@ def phy_to_curation(phy_folder, sorting_or_analyzer):
     return SequentialCuration(curation_steps=steps), cluster_to_unit
 
 
-def apply_phy_curation(sorting_or_analyzer, phy_folder, **apply_curation_kwargs):
+def apply_phy_curation(sorting_or_analyzer, phy_folder, allow_hard_merge=False, **apply_curation_kwargs):
     """
     Apply a phy curation to the sorting or analyzer that was exported to phy.
 
@@ -156,14 +161,21 @@ def apply_phy_curation(sorting_or_analyzer, phy_folder, **apply_curation_kwargs)
     when it is free. The result is checked spike by spike against the phy folder.
     Metrics are never taken from phy: the analyzer extensions are updated by SpikeInterface.
 
+    Merges are done as fast soft merges, which do not need the raw recording. Units that share too
+    few channels can only be merged with a hard merge, which recomputes the merged units from the
+    raw recording. This is only done with `allow_hard_merge=True`.
+
     Parameters
     ----------
     sorting_or_analyzer : BaseSorting | SortingAnalyzer
         The sorting or analyzer that was exported to phy.
     phy_folder : str | Path
         Folder created by `export_to_phy` and curated in phy.
+    allow_hard_merge : bool, default: False
+        If False, raise HardMergeRequired when some merges need a hard merge. If True, do these
+        merges as hard merges. The raw recording must then be attached to the analyzer.
     **apply_curation_kwargs
-        Passed to `spikeinterface.curation.apply_curation`, e.g. `merging_mode` or `sparsity_overlap`.
+        Passed to `spikeinterface.curation.apply_curation`, e.g. `sparsity_overlap` or job kwargs.
 
     Returns
     -------
@@ -171,11 +183,35 @@ def apply_phy_curation(sorting_or_analyzer, phy_folder, **apply_curation_kwargs)
         The curated sorting or analyzer (in memory).
     """
     curation, cluster_to_unit = phy_to_curation(phy_folder, sorting_or_analyzer)
+    steps = list(curation.curation_steps)
+
+    hard_merges = _merges_needing_hard_mode(
+        sorting_or_analyzer, steps, apply_curation_kwargs.get("sparsity_overlap", 0.75)
+    )
+    if hard_merges:
+        merge_list = ", ".join(f"{m.unit_ids} -> {m.new_unit_id}" for m in hard_merges)
+        if not allow_hard_merge:
+            raise HardMergeRequired(
+                f"{len(hard_merges)} merges cannot be done as a fast soft merge because the units share too few "
+                f"channels: {merge_list}. These merges need a hard merge, which requires the raw recording and will "
+                "likely take a long time to run. Check that the merges are intended, attach the recording with "
+                "`analyzer.set_temporary_recording(recording)` and rerun with `allow_hard_merge=True`."
+            )
+        if not (sorting_or_analyzer.has_recording() or sorting_or_analyzer.has_temporary_recording()):
+            raise HardMergeRequired(
+                f"Hard merges of {merge_list} need the raw recording, but the analyzer has none. "
+                "Attach it with `analyzer.set_temporary_recording(recording)`."
+            )
+        steps = _separate_hard_merges(steps, hard_merges)
+
     # steps are applied one by one: apply_curation (spikeinterface 0.105) wraps job kwargs of a
     # SequentialCuration in a `job_kwargs` argument, which breaks hard merges
     curated = sorting_or_analyzer
-    for step in curation.curation_steps:
-        curated = apply_curation(curated, step, **apply_curation_kwargs)
+    for step in steps:
+        kwargs = dict(apply_curation_kwargs)
+        if hard_merges and step.merges and step.merges[0] in hard_merges:
+            kwargs["merging_mode"] = "hard"
+        curated = apply_curation(curated, step, **kwargs)
 
     sorting = getattr(curated, "sorting", curated)
     spike_times = np.load(Path(phy_folder) / "spike_times.npy").ravel()
@@ -190,6 +226,38 @@ def apply_phy_curation(sorting_or_analyzer, phy_folder, **apply_curation_kwargs)
     if mismatched:
         raise RuntimeError(f"{len(mismatched)} curated units do not match their phy clusters, e.g. {mismatched[:5]}")
     return curated
+
+
+def _merges_needing_hard_mode(sorting_or_analyzer, steps, sparsity_overlap):
+    """Return the merges whose units overlap too little for a soft merge."""
+    if not isinstance(sorting_or_analyzer, SortingAnalyzer) or sorting_or_analyzer.sparsity is None:
+        return []
+    # split pieces keep the channels of the unit they come from
+    parents = {}
+    for step in steps:
+        for split in step.splits:
+            parents.update({new_id: split.unit_id for new_id in split.new_unit_ids})
+    merges = [merge for step in steps for merge in step.merges]
+    groups = [[parents.get(u, u) for u in merge.unit_ids] for merge in merges]
+    mergeable = sorting_or_analyzer.are_units_mergeable(groups, sparsity_overlap=sparsity_overlap)
+    return [merge for merge, group in zip(merges, groups) if not mergeable[tuple(group)]]
+
+
+def _separate_hard_merges(steps, hard_merges):
+    """Split the merge step into a step with the soft merges and a step with the hard merges."""
+    new_steps = []
+    for step in steps:
+        if not step.merges:
+            new_steps.append(step)
+            continue
+        soft = [m for m in step.merges if m not in hard_merges]
+        unit_ids = step.unit_ids
+        if soft:
+            soft_step = Curation(format_version="2", unit_ids=unit_ids, merges=soft)
+            new_steps.append(soft_step)
+            unit_ids = soft_step.get_final_ids_from_new_unit_ids()
+        new_steps.append(Curation(format_version="2", unit_ids=unit_ids, merges=hard_merges))
+    return new_steps
 
 
 def _read_phy_labels(phy_folder):

@@ -145,3 +145,62 @@ def test_custom_columns_not_copied_to_new_units(analyzer, phy_folder):
     model = {int(u): m for u, m in zip(curated.unit_ids, curated.sorting.get_property("modelLabels"))}
     assert model == {0: "good", 1: "MUA", 3: "good", 4: "good", 5: "MUA", 6: "", 7: ""}
     assert quality_of(curated)[6] == "noise" and quality_of(curated)[7] == "good"
+
+
+def test_hard_merge_needs_confirmation(tmp_path):
+    from unitrefine.phy_curation import HardMergeRequired
+
+    recording, sorting = si.generate_ground_truth_recording(durations=[20.0], num_units=6, seed=0)
+    sparsity_kwargs = dict(method="best_channels", num_channels=1)
+    analyzer = si.create_sorting_analyzer(sorting, recording, sparsity_kwargs=sparsity_kwargs)
+    analyzer.compute(["random_spikes", "waveforms", "templates", "noise_levels"])
+
+    # unit indices of two units on different channels
+    channels = analyzer.sparsity.mask.argmax(axis=1)
+    pair = [0, int(np.flatnonzero(channels != channels[0])[0])]
+
+    phy_folder = tmp_path / "phy"
+    export_to_phy(analyzer, phy_folder, compute_pc_features=False, copy_binary=False, verbose=False)
+
+    def merge(clusters, units):
+        clusters[np.isin(units, pair)] = 6
+
+    edit_clusters(phy_folder, merge)
+    with pytest.raises(HardMergeRequired, match="raw recording"):
+        apply_phy_curation(analyzer, phy_folder)
+
+    curated = apply_phy_curation(analyzer, phy_folder, allow_hard_merge=True)
+    assert ids_of(curated) == sorted(set(range(7)) - set(pair))
+
+
+def test_merge_then_split(analyzer, phy_folder):
+    # merge units 0 and 1 into 6, then split 6 so that both new clusters contain spikes of both units
+    def edit(clusters, units):
+        merged = np.flatnonzero(np.isin(units, [0, 1]))
+        clusters[merged[::2]] = 7
+        clusters[merged[1::2]] = 8
+
+    edit_clusters(phy_folder, edit)
+    write_labels(phy_folder, {2: "good", 3: "good", 4: "good", 5: "good", 7: "good", 8: "noise"})
+    curated = apply_phy_curation(analyzer, phy_folder)
+
+    assert ids_of(curated) == [2, 3, 4, 5, 7, 8]
+    assert np.array_equal(spikes_of(curated.sorting, [7, 8]), spikes_of(analyzer.sorting, [0, 1]))
+    assert quality_of(curated)[7] == "good" and quality_of(curated)[8] == "noise"
+
+
+def test_save_and_reload(analyzer, phy_folder, tmp_path):
+    def split(clusters, units):
+        in_unit = np.flatnonzero(units == 2)
+        clusters[in_unit[: len(in_unit) // 2]] = 6
+        clusters[in_unit[len(in_unit) // 2 :]] = 7
+
+    edit_clusters(phy_folder, split)
+    write_labels(phy_folder, {0: "good", 1: "mua", 3: "noise", 4: "good", 5: "good", 6: "good", 7: "noise"})
+    curated = apply_phy_curation(analyzer, phy_folder)
+    curated.save_as(format="binary_folder", folder=tmp_path / "curated")
+
+    reloaded = si.load_sorting_analyzer(tmp_path / "curated")
+    assert ids_of(reloaded) == [0, 1, 3, 4, 5, 6, 7]
+    assert quality_of(reloaded) == quality_of(curated)
+    assert reloaded.has_extension("templates")

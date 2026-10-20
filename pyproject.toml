@@ -14,7 +14,7 @@ dependencies = [
     "numba>=0.61.0",
     "pandas>=2.2.3",
     "pyqtgraph>=0.13.7",
-    "spikeinterface>=0.104.0",
+    "spikeinterface>=0.105.0",
     "pyyaml>=6.0.2",
     "scikit-learn==1.7",
     "skops>=0.11.0",
