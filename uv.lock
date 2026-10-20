@@ -3,16 +3,16 @@ revision = 5
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13' and platform_machine == 'AMD64' and sys_platform == 'win32'",
-    "python_full_version == '3.12.*' and platform_machine == 'AMD64' and sys_platform == 'win32'",
-    "python_full_version < '3.12' and platform_machine == 'AMD64' and sys_platform == 'win32'",
     "python_full_version >= '3.13' and sys_platform == 'darwin'",
-    "python_full_version == '3.12.*' and sys_platform == 'darwin'",
-    "python_full_version < '3.12' and sys_platform == 'darwin'",
     "python_full_version >= '3.13' and sys_platform == 'linux'",
-    "python_full_version == '3.12.*' and sys_platform == 'linux'",
-    "python_full_version < '3.12' and sys_platform == 'linux'",
     "(python_full_version >= '3.13' and platform_machine != 'AMD64' and sys_platform == 'win32') or (python_full_version >= '3.13' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "python_full_version == '3.12.*' and platform_machine == 'AMD64' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'darwin'",
+    "python_full_version == '3.12.*' and sys_platform == 'linux'",
     "(python_full_version == '3.12.*' and platform_machine != 'AMD64' and sys_platform == 'win32') or (python_full_version == '3.12.*' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "python_full_version < '3.12' and platform_machine == 'AMD64' and sys_platform == 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'darwin'",
+    "python_full_version < '3.12' and sys_platform == 'linux'",
     "(python_full_version < '3.12' and platform_machine != 'AMD64' and sys_platform == 'win32') or (python_full_version < '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 
@@ -1114,6 +1114,15 @@ wheels = [
 ]
 
 [[package]]
+name = "mtscomp"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2e/ef/365e2dd214155b06d22622b3278de769d20e9e1d201538a941d62b609248/mtscomp-1.0.2.tar.gz", hash = "sha256:609c4fe5a0d00532c1452b10318a74e04add8e47c562aca216e7b40de0e4bf73", size = 15967, upload-time = "2021-05-11T11:32:31.014Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5e/12/449d679e3aef2dcadfb9b275e2809d87bfeb798c7e9a911ee4bae536e24a/mtscomp-1.0.2-py2.py3-none-any.whl", hash = "sha256:a00a6d46a6155af5bca44931ccf5045756ea8256db8fd452f5e0592b71b4db69", size = 16382, upload-time = "2021-05-11T11:32:29.676Z" },
+]
+
+[[package]]
 name = "multidict"
 version = "6.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1793,13 +1802,13 @@ version = "5.15.17"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.13' and sys_platform == 'darwin'",
-    "python_full_version == '3.12.*' and sys_platform == 'darwin'",
-    "python_full_version < '3.12' and sys_platform == 'darwin'",
     "python_full_version >= '3.13' and sys_platform == 'linux'",
-    "python_full_version == '3.12.*' and sys_platform == 'linux'",
-    "python_full_version < '3.12' and sys_platform == 'linux'",
     "(python_full_version >= '3.13' and platform_machine != 'AMD64' and sys_platform == 'win32') or (python_full_version >= '3.13' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "python_full_version == '3.12.*' and sys_platform == 'darwin'",
+    "python_full_version == '3.12.*' and sys_platform == 'linux'",
     "(python_full_version == '3.12.*' and platform_machine != 'AMD64' and sys_platform == 'win32') or (python_full_version == '3.12.*' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "python_full_version < '3.12' and sys_platform == 'darwin'",
+    "python_full_version < '3.12' and sys_platform == 'linux'",
     "(python_full_version < '3.12' and platform_machine != 'AMD64' and sys_platform == 'win32') or (python_full_version < '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 wheels = [
@@ -2344,6 +2353,7 @@ source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },
     { name = "modal-python" },
+    { name = "mtscomp" },
     { name = "numba" },
     { name = "numcodecs" },
     { name = "pandas" },
@@ -2363,6 +2373,7 @@ dependencies = [
 requires-dist = [
     { name = "huggingface-hub", specifier = ">=0.35.0" },
     { name = "modal-python", specifier = ">=0.4.2.1" },
+    { name = "mtscomp", specifier = "==1.0.2" },
     { name = "numba", specifier = ">=0.61.0" },
     { name = "numcodecs", specifier = "==0.15.1" },
     { name = "pandas", specifier = ">=2.2.3" },
