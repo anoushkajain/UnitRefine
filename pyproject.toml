@@ -7,7 +7,7 @@ authors = [
     { name = "Chris Halcrow", email = "chrishalcrow@gmail.com" },
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 license = { file = "LICENSE" }
 dependencies = [
     "numcodecs==0.15.1",
