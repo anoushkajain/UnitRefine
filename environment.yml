@@ -26,16 +26,17 @@ dependencies:
   - numba>=0.61.0
   - pandas>=2.2.3
   - pyqtgraph>=0.13.7
-  - spikeinterface>=0.104.0
+  - spikeinterface>=0.105.0
   - pyyaml>=6.0.2
   - scikit-learn=1.7.0
+  - shap>=0.49.1
   - skops>=0.11.0
   - huggingface_hub>=0.35.0
   - pyqt>=5.15,<6
   - s3fs>=2025.10.0
   - pip:
       # Not on conda-forge; installed via pip into the conda env
-      - spikeinterface-gui>=0.13.0
+      - spikeinterface-gui>=0.14.0
       - modal-python>=0.4.2.1
   # UnitRefine itself is installed manually after `conda env create` with
   # `pip install -e . --no-deps` (see header comment).
