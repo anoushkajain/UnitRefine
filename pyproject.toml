@@ -7,19 +7,22 @@ authors = [
     { name = "Chris Halcrow", email = "chrishalcrow@gmail.com" },
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 license = { file = "LICENSE" }
 dependencies = [
     "numcodecs==0.15.1",
     "numba>=0.61.0",
     "pandas>=2.2.3",
     "pyqtgraph>=0.13.7",
+
     "spikeinterface>=0.105.0",
+
     "pyyaml>=6.0.2",
     "scikit-learn==1.7",
     "skops>=0.11.0",
     "huggingface-hub>=0.35.0",
     "spikeinterface-gui>=0.14.0",
+
     "pyqt5>=5.15.11",
     "s3fs>=2025.10.0",
     "modal-python>=0.4.2.1",
