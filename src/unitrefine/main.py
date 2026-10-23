@@ -467,7 +467,7 @@ class MainWindow(QtWidgets.QWidget):
             "<i>Suggestion:</i> repeat for a few rounds, and stop when the <i>Accuracy over rounds</i> figure levels off."
         ))
 
-        self.relabel_section.body_layout.addWidget(subheading("Step 1: find the least confident units"))
+        self.relabel_section.body_layout.addWidget(subheading("4.1 Find the least confident units"))
         find_layout = QtWidgets.QHBoxLayout()
         self.unitLabel = QtWidgets.QLabel("Number of units to relabel, across all analyzers:")
         find_layout.addWidget(self.unitLabel)
@@ -483,10 +483,10 @@ class MainWindow(QtWidgets.QWidget):
         find_layout.addStretch()
         self.relabel_section.body_layout.addLayout(find_layout)
 
-        self.relabel_section.body_layout.addWidget(subheading("Step 2: relabel them in each analyzer"))
+        self.relabel_section.body_layout.addWidget(subheading("4.2 Relabel them in each analyzer"))
         self.relabel_rows_layout = self.add_rows_container(self.relabel_section)
 
-        self.relabel_section.body_layout.addWidget(subheading("Step 3: retrain"))
+        self.relabel_section.body_layout.addWidget(subheading("4.3 Retrain"))
         retrain_choice_layout = QtWidgets.QHBoxLayout()
         retrain_choice_layout.addWidget(QtWidgets.QLabel("Model to retrain:"))
         self.retrain_choice = QtWidgets.QComboBox()
@@ -505,7 +505,7 @@ class MainWindow(QtWidgets.QWidget):
         retrain_layout.addWidget(retrain_button)
         self.relabel_section.body_layout.addLayout(retrain_layout)
 
-        self.relabel_section.body_layout.addWidget(subheading("Retraining history"))
+        self.relabel_section.body_layout.addWidget(subheading("4.4 Retraining history"))
         self.history_message = muted_label("")
         self.relabel_section.body_layout.addWidget(self.history_message)
         self.history_table = RetrainingHistoryTable()
