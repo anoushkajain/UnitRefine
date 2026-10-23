@@ -6,3 +6,8 @@ __pycache__
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints
+
+# local UnitRefine projects and editor files
+my_new_project*/
+.claude/
+test.ipynb

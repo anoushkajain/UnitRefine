@@ -19,21 +19,70 @@ from spikeinterface.curation.model_based_curation import load_model
 from skops.io import dump
 
 import PyQt5.QtWidgets as QtWidgets
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QIcon
+from PyQt5.QtCore import Qt, QSize, QProcess, QProcessEnvironment, QTimer, QCoreApplication, QEvent, QUrl
+from PyQt5.QtGui import QDesktopServices, QFont, QFontDatabase, QIcon
 from PyQt5.QtWidgets import QStyleFactory
 
 from spikeinterface_gui.main import check_folder_is_analyzer
 from spikeinterface.core.core_tools import is_path_remote
 from spikeinterface.core import load_sorting_analyzer
 
+from unitrefine import SIGUI_SHOWN_MARKER, SIGUI_STEP_MARKER
+from unitrefine.sigui_progress import OpeningDialog, CURATE_STEPS, INSPECT_STEPS
 from unitrefine.train import TrainWindow
+from unitrefine.import_labels import import_labels, compute_all_metrics
+from unitrefine.manage_models import ManageModelsWindow, HFHModelsDialog
+from unitrefine.model_selection import ModelSelectionWidget
+from unitrefine.predictions import (
+    QUALITY_ALIASES,
+    analyzer_output_names,
+    label_units_function,
+    apply_to_analyzers,
+    find_least_confident_units,
+    map_quality_to_model_class,
+    metrics_for_model,
+    as_model_input,
+    predictions_file_name,
+    relabelled_units_path,
+    units_to_relabel_path,
+)
+from unitrefine.apply_models import find_analyzers
+from unitrefine.evaluation import read_trained_on, write_trained_on, normalise_path
+from unitrefine import figures, theme
+from unitrefine.launcher import enable_high_dpi_scaling, set_app_font
+from unitrefine.retraining_history import RetrainingHistoryTable, write_log as write_retraining_log
+from unitrefine.widgets import (
+    BusyNotice,
+    CollapsibleSection,
+    ElidedLabel,
+    FigureGallery,
+    FigureWorker,
+    PathRow,
+    chip,
+    clear_layout,
+    group_label,
+    list_box,
+    list_message,
+    sigui_help_box,
+    muted_label,
+    open_folder,
+    subheading,
+)
 
 import re
 _RETRAINED_RE = re.compile(r"^(?P<base>.*?)(?:_retrained(?:_(?P<idx>\d+))?)?$")
 
 import warnings
 warnings.filterwarnings("ignore")
+
+UPLOAD_TUTORIAL_URL = "https://spikeinterface.readthedocs.io/en/stable/tutorials/curation/plot_3_upload_a_model.html"
+
+APP_DESCRIPTION = "a machine-learning toolbox that simplifies spike sorting curation by reducing manual curation"
+
+# width of the column holding the sections, in device independent pixels
+CONTENT_MIN_WIDTH = 720
+CONTENT_MAX_WIDTH = 1100
+
 
 class UrlInputDialog(QtWidgets.QDialog):
     def __init__(self, parent=None, default=None, background_color=None):
@@ -45,8 +94,6 @@ class UrlInputDialog(QtWidgets.QDialog):
         self.setWindowTitle("Open URL")
         self.setMinimumWidth(400)
 
-        self.setStyleSheet(f"background-color: '#{background_color}'")
-
         layout = QtWidgets.QVBoxLayout()
 
         self.label = QtWidgets.QLabel("Please enter the s3 path to an analyzer:")
@@ -56,7 +103,6 @@ class UrlInputDialog(QtWidgets.QDialog):
         self.url_input.setPlaceholderText(default)
         self.url_input.setClearButtonEnabled(True)
         layout.addWidget(self.url_input)
-        self.url_input.setStyleSheet("background-color: '#FFFFFF'")
 
         self.button_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel
@@ -110,14 +156,20 @@ class UnitRefineProject:
             if curation is not None:
                 curation.to_csv(save_path / 'labels.csv')
 
+    def save_config(self):
+        """Saves only config.json, leaving the analyzers' label files untouched."""
+        with open(Path(self.folder_name) / "config.json", 'w') as f:
+            json.dump(self.config, f, indent=4)
+
     def add_analyzer(self, directory):
 
-        analyzer_keys = self.analyzers.keys()
-        if len(analyzer_keys) > 0:
-            max_key = max(list(analyzer_keys))
-            new_key = max_key + 1
-        else:
-            new_key = 0
+        # a number no analyzer has used, also not one whose folder is still on disk (e.g. left from a removed
+        # analyzer), so a new analyzer never picks up another analyzer's files
+        used_keys = set(self.analyzers.keys())
+        for folder in (Path(self.folder_name) / "analyzers").glob("analyzer_*"):
+            if folder.name.split("_")[-1].isdigit():
+                used_keys.add(int(folder.name.split("_")[-1]))
+        new_key = max(used_keys) + 1 if len(used_keys) > 0 else 0
 
         analyer_in_project = Path(f'analyzers/analyzer_{new_key}')
         self.analyzers[new_key] = {'path': directory, 'analyzer_in_project': analyer_in_project}
@@ -129,12 +181,22 @@ def load_project(folder_name):
 
     project = UnitRefineProject(folder_name)
 
+    config_path = folder_name / "config.json"
+    if config_path.is_file():
+        with open(config_path) as f:
+            project.config = json.load(f)
+
     analyzers_folder = folder_name / "analyzers"
     analyzer_folders = list(analyzers_folder.glob('*/'))
 
     for analyzer_folder in analyzer_folders:
 
         analyzer_dict = {}
+
+        # without path.txt the folder doesn't belong to an analyzer in the project (e.g. it was removed)
+        if not (analyzer_folder / 'path.txt').is_file():
+            print(f"Skipping {analyzer_folder}: it has no path.txt, so it is not an analyzer in this project.")
+            continue
 
         with open(analyzer_folder / 'path.txt') as f:
             analyzer_path = f.read()
@@ -173,175 +235,424 @@ def load_project(folder_name):
 class MainWindow(QtWidgets.QWidget):
 
     def __init__(self, project):
-        
+
         super().__init__()
 
-        self.setStyleSheet("background-color: white")
-        
+        self.setObjectName("page")
+
         self.w = None
         self.sorting_analyzer_paths = []
 
         self.output_folder = project.folder_name
 
         self.project = project
-        self.percentage_float = 20
+        self.num_units_to_relabel = 50
 
-        self.main_layout = QtWidgets.QGridLayout(self)
+        # figures are made one at a time in a background thread; changes are collected for a moment first,
+        # so several changes at once (e.g. a new model selected) only update the figures once
+        self.figure_worker = FigureWorker(self)
+        self.figure_refresh_timer = QTimer(self)
+        self.figure_refresh_timer.setSingleShot(True)
+        self.figure_refresh_timer.setInterval(150)
+        self.figure_refresh_timer.timeout.connect(self.refresh_figures)
+
+        # The sections sit in a column centred in a scroll area. The column follows the window width between
+        # a minimum (smaller windows scroll sideways) and a maximum (larger windows keep it centred instead of
+        # stretching it). Sizes are in device independent pixels, so they follow the screen's display scaling.
+        content_widget = QtWidgets.QWidget()
+        content_widget.setObjectName("page")
+        content_widget.setMinimumWidth(CONTENT_MIN_WIDTH)
+        content_widget.setMaximumWidth(CONTENT_MAX_WIDTH)
+        self.main_layout = QtWidgets.QVBoxLayout(content_widget)
+        self.main_layout.setContentsMargins(4, 20, 4, 28)
+        self.main_layout.setSpacing(16)
+
+        centring_widget = QtWidgets.QWidget()
+        centring_widget.setObjectName("page")
+        centring_layout = QtWidgets.QHBoxLayout(centring_widget)
+        centring_layout.setContentsMargins(16, 0, 16, 0)
+        # the column takes the width first; the stretches on either side only get what is left once
+        # the column reaches its maximum width, which keeps it centred
+        centring_layout.addStretch(0)
+        centring_layout.addWidget(content_widget, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        centring_layout.addStretch(0)
+
+        scroll_area = QtWidgets.QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QtWidgets.QFrame.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setWidget(centring_widget)
+
+        window_layout = QtWidgets.QVBoxLayout(self)
+        window_layout.setContentsMargins(0, 0, 0, 0)
+        window_layout.setSpacing(0)
+        # banner shown while the SpikeInterface-GUI is open; outside the scroll area so it's always visible
+        self.sigui_banner = QtWidgets.QFrame()
+        self.sigui_banner.setStyleSheet(f"QFrame {{ background-color: {theme.WARNING_SOFT}; border-bottom: 1px solid #F5D78E; }}")
+        banner_layout = QtWidgets.QHBoxLayout(self.sigui_banner)
+        banner_layout.setContentsMargins(20, 10, 20, 10)
+        self.sigui_banner_text = QtWidgets.QLabel("")
+        self.sigui_banner_text.setWordWrap(True)
+        self.sigui_banner_text.setStyleSheet("border: none;")
+        banner_layout.addWidget(self.sigui_banner_text, 1)
+        self.sigui_banner.setVisible(False)
+        window_layout.addWidget(self.sigui_banner)
+
+        window_layout.addWidget(scroll_area)
+        self.content_widget = content_widget
+        self.sigui_process = None
         self.retrainedModelNameForm = None
 
-        to_curateWidget = QtWidgets.QWidget()
-        to_curateWidget.setStyleSheet("background-color: LightBlue")
-
-        projectWidget = QtWidgets.QWidget()
-        projectWidget.setStyleSheet("background-color: LightBlue")
-
-        projectLayout = QtWidgets.QGridLayout()
-
-        projectTitleWidget = QtWidgets.QLabel("1. PROJECT DETAILS")
-        projectTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        projectLayout.addWidget(projectTitleWidget, 0, 0)
-
-        output_folder_text = QtWidgets.QLabel(f"Project folder: {self.output_folder}")
-        projectLayout.addWidget(output_folder_text,1,0,1,3)
-
-        labels_text = QtWidgets.QLabel("Labels: Noise, Good, MUA")
-        labels_text.setAlignment(Qt.AlignmentFlag.AlignRight) 
-        projectLayout.addWidget(labels_text,2,0,1,1)
-
-        projectWidget.setLayout(projectLayout)
-        self.main_layout.addWidget(projectWidget)
+        header_layout = QtWidgets.QHBoxLayout()
+        header_layout.setContentsMargins(4, 0, 4, 4)
+        app_title = QtWidgets.QLabel("UnitRefine")
+        app_title.setStyleSheet("font-weight: bold; font-size: 20pt;")
+        header_layout.addWidget(app_title, 0, Qt.AlignmentFlag.AlignTop)
+        app_subtitle = muted_label(APP_DESCRIPTION[0].upper() + APP_DESCRIPTION[1:])
+        app_subtitle.setStyleSheet("padding-top: 9px; padding-left: 4px;")
+        header_layout.addWidget(app_subtitle, 1)
+        self.main_layout.addLayout(header_layout)
 
         ###############
-        # CURATE
-        ##############
+        # 1. PROJECT
+        ###############
 
-        saWidget = QtWidgets.QWidget()
-        saWidget.setStyleSheet("background-color: '#CBEECB'")
+        self.project_section = self.make_section(1, "Project")
+        self.project_section.set_summary(Path(self.output_folder).name)
 
-        saLayout = QtWidgets.QGridLayout()
-        
-        curation_title_text = "2. CURATION"
+        project_form = QtWidgets.QGridLayout()
+        project_form.setHorizontalSpacing(12)
+        project_form.setVerticalSpacing(6)
+        project_form.setColumnStretch(1, 1)
+        folders = [
+            ("Project folder", Path(self.output_folder)),
+            ("Models folder", Path(self.output_folder) / "models"),
+            ("Figures folder", Path(self.output_folder) / figures.FIGURES_FOLDER),
+        ]
+        for row, (name, folder) in enumerate(folders):
+            project_form.addWidget(muted_label(name, word_wrap=False), row, 0)
+            project_form.addWidget(ElidedLabel(str(folder)), row, 1)
+            open_button = theme.make_flat(QtWidgets.QPushButton("Open"))
+            open_button.clicked.connect(lambda _checked=False, folder=folder: open_folder(folder))
+            project_form.addWidget(open_button, row, 2)
+        project_form.addWidget(muted_label("Labels", word_wrap=False), len(folders), 0)
+        project_form.addWidget(QtWidgets.QLabel("good, MUA, noise"), len(folders), 1)
+        project_form.addWidget(muted_label("Contents", word_wrap=False), len(folders) + 1, 0)
+        self.project_counts_label = QtWidgets.QLabel("")
+        project_form.addWidget(self.project_counts_label, len(folders) + 1, 1, 1, 2)
+        self.project_section.body_layout.addLayout(project_form)
 
-        curationTitleWidget = QtWidgets.QLabel(curation_title_text)
-        curationTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        saLayout.addWidget(curationTitleWidget,0,0,1,1)
-        
-        self.add_sa_button = QtWidgets.QPushButton("+ Add Sorting Analyzer Folder")
+        ###############
+        # 2. LABEL AND TRAIN
+        ###############
+
+        self.curation_section = self.make_section(2, "Label your units and train a model")
+        self.curation_section.body_layout.addWidget(muted_label(
+            "Label the units of your recordings yourself with <b>Curate</b> (opens the SpikeInterface-GUI), or "
+            "<b>Import labels</b> you already have. Then <b>train a model</b> on them.<br>"
+            "<b>Import labels</b> reads Phy (cluster_group.tsv, cluster_info.tsv), SortingView (.json), SpikeInterface "
+            "curation (.json), or a .csv/.tsv with <i>unit_id</i> and <i>quality</i> columns. Labels good, MUA and "
+            "noise are used; others (e.g. unsorted) are skipped."
+        ))
+
+        add_buttons_layout = QtWidgets.QHBoxLayout()
+        add_buttons_layout.addWidget(QtWidgets.QLabel("Add your spike sorted data:"))
+        self.add_sa_button = QtWidgets.QPushButton("+ Sorting Analyzer folder")
         self.add_sa_button.clicked.connect(self.selectDirectoryDialog)
-        saLayout.addWidget(self.add_sa_button,1,0)
-
-        self.add_s3_button = QtWidgets.QPushButton("+ Add Analyzer from s3")
+        add_buttons_layout.addWidget(self.add_sa_button)
+        self.add_s3_button = QtWidgets.QPushButton("+ Analyzer from s3")
         self.add_s3_button.clicked.connect(self.add_from_s3)
-        saLayout.addWidget(self.add_s3_button,1,1,1,2)
+        add_buttons_layout.addWidget(self.add_s3_button)
+        add_phy_button = QtWidgets.QPushButton("+ Phy output (under development)")
+        add_phy_button.setEnabled(False)
+        add_phy_button.setToolTip("Loading Phy output folders directly is under development")
+        add_buttons_layout.addWidget(add_phy_button)
+        add_buttons_layout.addStretch()
+        self.curation_section.body_layout.addLayout(add_buttons_layout)
 
-        self.curate_text = QtWidgets.QLabel("Curated?")
-        saLayout.addWidget(self.curate_text,2,2)
+        self.analyzer_rows_layout = self.add_rows_container(self.curation_section)
+        self.curation_section.body_layout.addWidget(sigui_help_box())
 
-        self.saLayout = saLayout
-        saWidget.setLayout(saLayout)
-        self.make_curation_button_list()
+        train_layout = QtWidgets.QHBoxLayout()
+        train_button = theme.make_primary(QtWidgets.QPushButton("Train a model"))
+        train_button.clicked.connect(self.show_train_window)
+        train_layout.addWidget(train_button)
+        train_layout.addStretch()
+        self.curation_section.body_layout.addLayout(train_layout)
+
+        self.training_gallery = FigureGallery(self.figure_worker, self.figures_folder("2_labels_and_training"))
+        self.curation_section.body_layout.addWidget(self.training_gallery)
 
         ###############
-        # TRAIN
-        ##############
+        # 3. APPLY MODELS
+        ###############
 
-        trainWidget = QtWidgets.QWidget()
-        trainWidget.setStyleSheet("background-color: PeachPuff")
-        self.validateLayout = QtWidgets.QGridLayout()
-        self.trainLayout = QtWidgets.QGridLayout()
+        self.apply_section = self.make_section(3, "Apply models")
+        self.apply_section.body_layout.addWidget(muted_label(
+            "Get labels from a model you trained or downloaded. Use any model on its own, or combine a noise vs "
+            "neural model and a SUA vs MUA model into a <b>cascade</b>. The figures show what the models predict, "
+            "and how they compare with your labels."
+        ))
 
-        trainTitleWidget = QtWidgets.QLabel("3. TRAIN or LOAD models")
-        trainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        self.trainLayout.addWidget(trainTitleWidget, 0, 0)
-
-        train_button = QtWidgets.QPushButton("Train")
-        train_button.clicked.connect(self.show_train_window)
-        self.trainLayout.addWidget(train_button, 1, 0, 1, 2)
-
+        self.apply_section.body_layout.addWidget(subheading("3.1 Load models"))
+        load_layout = QtWidgets.QHBoxLayout()
         load_model_button = QtWidgets.QPushButton("+ Load")
+        load_model_button.setToolTip("Add a model folder from your computer")
         load_model_button.clicked.connect(self.selectModelDialog)
-        self.trainLayout.addWidget(load_model_button, 1, 2, 1, 1)
-
+        load_layout.addWidget(load_model_button)
         load_model_hf = QtWidgets.QPushButton("+ Load from HFH")
+        load_model_hf.setToolTip("Download UnitRefine models from the Hugging Face Hub")
         load_model_hf.clicked.connect(self.add_from_hfh)
-        self.trainLayout.addWidget(load_model_hf, 1, 3, 1, 1)
+        load_layout.addWidget(load_model_hf)
+        manage_models_button = QtWidgets.QPushButton("Manage models")
+        manage_models_button.setToolTip("See the classes each model was trained on, and delete models")
+        manage_models_button.clicked.connect(self.show_manage_models_window)
+        load_layout.addWidget(manage_models_button)
+        load_layout.addWidget(muted_label("Models trained in section 2 are added here.", word_wrap=False), 1)
+        self.apply_section.body_layout.addLayout(load_layout)
 
-        trainTitleWidget2 = QtWidgets.QLabel("After training or loading, choose your model:")
-        self.trainLayout.addWidget(trainTitleWidget2, 2, 0, 1, 3)
+        self.apply_section.body_layout.addWidget(subheading("3.2 Choose your models"))
+        self.apply_section.body_layout.addWidget(muted_label(
+            "Tick several models to compare them on the same recordings: their labels and confidence appear side by "
+            "side in <b>Inspect</b> and in the figures below."))
+        self.model_selector = ModelSelectionWidget(self)
+        self.apply_section.body_layout.addWidget(self.model_selector)
 
-        validateTitleWidget = QtWidgets.QLabel("And inspect its predictions on an analyzer:")
-        self.validateLayout.addWidget(validateTitleWidget, 0, 0, 1, 3 )
+        self.apply_section.body_layout.addWidget(subheading("3.3 Apply models to get predictions and inspect"))
+        new_data_layout = QtWidgets.QHBoxLayout()
+        new_data_layout.addWidget(QtWidgets.QLabel("Add spike sorted data to get predictions on:"))
+        add_new_folder_button = QtWidgets.QPushButton("+ Sorting Analyzer folder")
+        add_new_folder_button.setToolTip("One analyzer, or a folder with several (searched 3 levels down)")
+        add_new_folder_button.clicked.connect(self.add_new_analyzers_from_folder)
+        new_data_layout.addWidget(add_new_folder_button)
+        add_new_s3_button = QtWidgets.QPushButton("+ Analyzer from s3")
+        add_new_s3_button.clicked.connect(self.add_new_analyzer_from_s3)
+        new_data_layout.addWidget(add_new_s3_button)
+        add_new_phy_button = QtWidgets.QPushButton("+ Phy output (under development)")
+        add_new_phy_button.setEnabled(False)
+        add_new_phy_button.setToolTip("Loading Phy output folders directly is under development")
+        new_data_layout.addWidget(add_new_phy_button)
+        new_data_layout.addStretch()
+        self.apply_section.body_layout.addLayout(new_data_layout)
 
+        # the new analyzers, and (when shown) the training analyzers; rebuilt when they change
+        validate_container = QtWidgets.QWidget()
+        self.validate_rows_layout = QtWidgets.QVBoxLayout(validate_container)
+        self.validate_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self.validate_rows_layout.setSpacing(8)
+        self.apply_section.body_layout.addWidget(validate_container)
+        self.show_training_analyzers = False
 
-        self.trainANDvalidateLayout = QtWidgets.QVBoxLayout(trainWidget)
-        self.trainANDvalidateLayout.addLayout(self.trainLayout)
-        self.trainANDvalidateLayout.addLayout(self.validateLayout)
+        apply_code_button = theme.make_flat(QtWidgets.QPushButton("Generate code to apply the model(s) in a script"))
+        apply_code_button.setToolTip("Prints Python code to the terminal which applies the chosen models to an analyzer")
+        apply_code_button.clicked.connect(self.make_apply_code)
+        code_layout = QtWidgets.QHBoxLayout()
+        code_layout.addWidget(apply_code_button)
+        code_layout.addStretch()
+        self.apply_section.body_layout.addLayout(code_layout)
 
-        self.make_model_list()
-
-        self.modelLayout = QtWidgets.QGridLayout()
-
-        self.main_layout.addWidget(saWidget)
-        self.main_layout.addWidget(trainWidget)
+        self.apply_gallery = FigureGallery(self.figure_worker, self.figures_folder("3_predictions"))
+        self.apply_section.body_layout.addWidget(self.apply_gallery)
 
         #################
-        # RETRAIN WIDGET
+        # 4. ACTIVE LEARNING
         ##################
 
-        retrainWidget = QtWidgets.QWidget()
-        retrainWidget.setStyleSheet("background-color: Pink")
+        self.relabel_section = self.make_section(4, "Improve the model: relabel and retrain")
+        self.relabel_section.body_layout.addWidget(muted_label(
+            "<b>Find</b> the units the model is least sure about across all your analyzers, <b>relabel</b> them in "
+            "the SpikeInterface-GUI, and <b>retrain</b>. Units you have already labelled are never picked again, so "
+            "each round asks about new units.<br>"
+            "<i>Suggestion:</i> repeat for a few rounds, and stop when the <i>Accuracy over rounds</i> figure levels off."
+        ))
 
-        self.retrainLayout = QtWidgets.QGridLayout()
-        self.relabelLayout = QtWidgets.QGridLayout()
+        self.relabel_section.body_layout.addWidget(subheading("4.1 Find the least confident units"))
+        find_layout = QtWidgets.QHBoxLayout()
+        self.unitLabel = QtWidgets.QLabel("Number of units to relabel, across all analyzers:")
+        find_layout.addWidget(self.unitLabel)
+        self.numUnitsForm = QtWidgets.QLineEdit(f"{self.num_units_to_relabel}")
+        self.numUnitsForm.setFixedWidth(60)
+        self.numUnitsForm.textChanged.connect(self.update_num_units_to_relabel)
+        find_layout.addWidget(self.numUnitsForm)
+        find_units_button = QtWidgets.QPushButton("Find least confident units")
+        find_units_button.setToolTip("Ranks the units of all analyzers by the confidence of the selected model(s), "
+                                     "and picks the least confident ones you have not labelled yet")
+        find_units_button.clicked.connect(self.pick_units_to_relabel)
+        find_layout.addWidget(find_units_button)
+        find_layout.addStretch()
+        self.relabel_section.body_layout.addLayout(find_layout)
 
-        retrainTitleWidget = QtWidgets.QLabel("4. RELABEL and RETRAIN")
-        retrainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        self.relabelLayout.addWidget(retrainTitleWidget,0,0,1,2)
-        self.relabelLayout.addWidget(QtWidgets.QLabel("Relabel uncertain units from each analyzer..."),2,0,1,1)
+        self.relabel_section.body_layout.addWidget(subheading("4.2 Relabel them in each analyzer"))
+        self.relabel_rows_layout = self.add_rows_container(self.relabel_section)
 
-        
-        self.percentageOfUnitsForm = QtWidgets.QLineEdit(f"{self.percentage_float}")
-        self.percentageOfUnitsForm.setStyleSheet("background-color: white;")
-        self.percentageOfUnitsForm.textChanged.connect(self.update_percentage_float)
-        self.unitLabel = QtWidgets.QLabel("Percentage of least confident units to display:")
-        
-        self.relabelLayout.addWidget(self.percentageOfUnitsForm,1,1,1,1)
-        self.relabelLayout.addWidget(self.unitLabel,1,0,1,1)
-
-        retrain_text = QtWidgets.QLabel("Retrained model name: ")
-        self.retrainLayout.addWidget(retrain_text,1,0,1,1)
-
-        current_model_name = self.combo_box.currentText()
-        self.retrainedModelNameForm = QtWidgets.QLineEdit(f"{current_model_name}_retrained")
-        self.retrainedModelNameForm.setStyleSheet("background-color: white; color: black;")
-        self.retrainLayout.addWidget(self.retrainedModelNameForm,1,1,1,1)
-
-        retrain_button = QtWidgets.QPushButton('Retrain model')
+        self.relabel_section.body_layout.addWidget(subheading("4.3 Retrain"))
+        retrain_choice_layout = QtWidgets.QHBoxLayout()
+        retrain_choice_layout.addWidget(QtWidgets.QLabel("Model to retrain:"))
+        self.retrain_choice = QtWidgets.QComboBox()
+        self.retrain_choice.setToolTip("With several models chosen in 3.2, retrain one of them, or all")
+        self.retrain_choice.currentIndexChanged.connect(self.on_retrain_choice_changed)
+        retrain_choice_layout.addWidget(self.retrain_choice, 1)
+        self.relabel_section.body_layout.addLayout(retrain_choice_layout)
+        self.relabel_section.body_layout.addWidget(muted_label(
+            "Choose a model from the models you selected in <b>3.2</b>."))
+        retrain_layout = QtWidgets.QHBoxLayout()
+        retrain_layout.addWidget(QtWidgets.QLabel("Retrained model name:"))
+        self.retrainedModelNameForm = QtWidgets.QLineEdit("")
+        retrain_layout.addWidget(self.retrainedModelNameForm, 1)
+        retrain_button = theme.make_primary(QtWidgets.QPushButton('Retrain'))
         retrain_button.clicked.connect(partial(self.retrain_model))
-        self.retrainLayout.addWidget(retrain_button,2,0,1,2)
+        retrain_layout.addWidget(retrain_button)
+        self.relabel_section.body_layout.addLayout(retrain_layout)
 
-        self.relabelANDvalidateLayout = QtWidgets.QVBoxLayout(retrainWidget)
-        self.relabelANDvalidateLayout.addLayout(self.relabelLayout)
-        self.relabelANDvalidateLayout.addLayout(self.retrainLayout)
+        self.relabel_section.body_layout.addWidget(subheading("4.4 Retraining history"))
+        self.history_message = muted_label("")
+        self.relabel_section.body_layout.addWidget(self.history_message)
+        self.history_table = RetrainingHistoryTable()
+        self.relabel_section.body_layout.addWidget(self.history_table)
 
+        self.active_learning_gallery = FigureGallery(self.figure_worker, self.figures_folder("4_active_learning"))
+        self.relabel_section.body_layout.addWidget(self.active_learning_gallery)
+
+        ###############
+        # 5. SHARE
+        ###############
+
+        self.share_section = self.make_section(5, "Share your model")
+        self.share_section.body_layout.addWidget(muted_label(
+            "You can upload your models to the Hugging Face Hub, so others can download and use them, like the "
+            "UnitRefine models in <b>+ Load from HFH</b>."))
+        tutorial_layout = QtWidgets.QHBoxLayout()
+        tutorial_button = theme.make_flat(QtWidgets.QPushButton("Optional: open the tutorial on uploading a model"))
+        tutorial_button.setToolTip(UPLOAD_TUTORIAL_URL)
+        tutorial_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(UPLOAD_TUTORIAL_URL)))
+        tutorial_layout.addWidget(tutorial_button)
+        tutorial_layout.addStretch()
+        self.share_section.body_layout.addLayout(tutorial_layout)
+
+        self.main_layout.addStretch(1)
+
+        self.make_curation_button_list()
         self.make_relabel_button_list()
 
-        self.main_layout.addWidget(saWidget)
-        self.main_layout.addWidget(trainWidget)
-        self.main_layout.addWidget(retrainWidget)
+        # fill the model selection once all the sections it updates exist
+        self.model_selector.selection_changed.connect(self.on_model_selection_changed)
+        self.make_model_list()
 
+    def finish_loading(self):
+        """
+        Fills in everything before the window is first shown, so it doesn't change in front of the user: the
+        figures (saved ones are shown at once, the others are made in the background), and the widgets which
+        were replaced while the lists were built.
+        """
+        self.figure_refresh_timer.stop()
+        self.refresh_figures()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        self.ensurePolished()
+        self.layout().activate()
 
-        ###############
-        # CODE BUTTON
-        ###############
+    def make_section(self, number, title):
+        """A collapsible section card; whether it is folded is remembered in the project's config."""
+        collapsed = self.project.config.get("collapsed_sections")
+        if collapsed is None:
+            # a new project opens with section 3 only: applying a (downloaded) model is where most people start
+            expanded = number == 3
+        else:
+            # the project details are folded unless opened: they are not needed all the time
+            expanded = not collapsed.get(str(number), number == 1)
+        section = CollapsibleSection(number, title, expanded=expanded)
+        section.toggled.connect(lambda expanded, number=number: self.remember_section_state(number, expanded))
+        self.main_layout.addWidget(section)
+        return section
 
-        apply_code_button = QtWidgets.QPushButton("Generate code to apply model to analyzer")
-        apply_code_button.clicked.connect(self.make_apply_code)
-        self.main_layout.addWidget(apply_code_button)
+    def remember_section_state(self, number, expanded):
+        self.project.config.setdefault("collapsed_sections", {})[str(number)] = not expanded
+        self.project.save_config()
+
+    def add_rows_container(self, section):
+        """A list of rows (e.g. one per analyzer) which is rebuilt when the project changes."""
+        container, rows_layout = list_box()
+        section.body_layout.addWidget(container)
+        return rows_layout
+
+    def figures_folder(self, section_folder):
+        return Path(self.output_folder) / figures.FIGURES_FOLDER / section_folder
+
+    def schedule_figure_refresh(self):
+        self.figure_refresh_timer.start()
+
+    def refresh_figures(self):
+        """
+        Updates the figures of sections 2, 3 and 4. Figures whose files did not change are shown at once
+        from the saved png; the others are made again in the background.
+        """
+        targets = self.relabel_targets()
+
+        # until some units are labelled, there is nothing to plot: say so instead of showing empty figures
+        has_labels = any(
+            (Path(target['save_folder']) / "labels.csv").is_file() for target in targets if target['analyzer_index'] is not None
+        )
+        if has_labels:
+            self.training_gallery.set_specs(figures.training_specs(self.output_folder, targets, self.trained_model_folders()))
+        elif len(self.project.analyzers) == 0:
+            self.training_gallery.set_specs([], empty_message="Figures appear here once you add your spike sorted data and label its units.")
+        else:
+            self.training_gallery.set_specs([], empty_message="Figures appear here once you curate or import labels.")
+
+        problem = self.model_selector.describe_problem()
+        if problem is not None:
+            message = f"Figures appear here once models are chosen. {problem}"
+            self.apply_gallery.set_specs([], empty_message=message)
+            self.active_learning_gallery.set_specs([], empty_message=message)
+            return
+
+        mode = self.model_selector.mode()
+        model_folders = [model_folder for model_folder, _ in self.model_selector.selected_models()]
+        key = self.model_selector.selection_key()
+        apply_specs = figures.apply_specs(self.output_folder, targets, mode, model_folders, key)
+        self.apply_gallery.set_specs(apply_specs, folder=apply_specs[0].path.parent)
+        lineages = dict(self.model_lineage(model_folder.name) for model_folder in model_folders)
+        active_learning_specs = figures.active_learning_specs(self.output_folder, targets, mode, model_folders, key, lineages)
+        self.active_learning_gallery.set_specs(active_learning_specs, folder=active_learning_specs[0].path.parent)
+
+    def trained_model_folders(self, max_models=6):
+        """The models trained in this project (not retrained versions), newest first, for the figures of section 2."""
+        trained = []
+        for model_folder, hfh_or_local in self.project.model_paths:
+            model_folder = Path(model_folder)
+            base_name, _ = _base_and_idx(model_folder.name)
+            if hfh_or_local != "local" or base_name != model_folder.name:
+                continue
+            if not ((model_folder / figures.TEST_PREDICTIONS_FILE).is_file() or (model_folder / "trained_on.json").is_file()):
+                continue
+            model_file = model_folder / "best_model.skops"
+            if model_file.is_file():
+                trained.append((model_file.stat().st_mtime, model_folder))
+        return [model_folder for _, model_folder in sorted(trained, key=lambda item: item[0], reverse=True)][:max_models]
+
+    def update_summaries(self):
+        """The short summaries in the section headers, and the counts in the project details."""
+        num_labelled = 0
+        for analyzer in self.project.analyzers.values():
+            labels_path = Path(self.project.folder_name) / analyzer['analyzer_in_project'] / "labels.csv"
+            if labels_path.is_file():
+                num_labelled += len(pd.read_csv(labels_path))
+        num_analyzers = len(self.project.analyzers)
+        num_applied = len(self.project.config.get("applied_analyzers", []))
+        self.project_counts_label.setText(
+            f"{num_analyzers} analyzer{'s' if num_analyzers != 1 else ''}, {num_labelled} labelled units, "
+            f"{len(self.project.model_paths)} models, {num_applied} new analyzers with predictions"
+        )
+        self.curation_section.set_summary(
+            f"{num_analyzers} analyzer{'s' if num_analyzers != 1 else ''} · {num_labelled} labelled units"
+        )
+        if hasattr(self, "model_selector"):
+            names = self.model_selector.selected_model_names()
+            self.apply_section.set_summary(self.selection_description() if len(names) > 0 else "no model chosen")
 
     def add_from_s3(self):
         
-        dialog = UrlInputDialog(background_color="CBEECB")
+        dialog = UrlInputDialog()
 
         if dialog.exec():
             url = dialog.get_url()
@@ -355,94 +666,212 @@ class MainWindow(QtWidgets.QWidget):
             else:
                 print(f"url {url} is not a valid analyzer path.")
 
-    def update_percentage_float(self):
+    def update_num_units_to_relabel(self):
 
-        percentage_text = self.percentageOfUnitsForm.text()
         try:
-            percentage_float = float(percentage_text)
-            
-            if percentage_float < 1:
-                print("Percentage of units displayed should be larger than 1. Please change the value.")
-                return
-            if percentage_float > 100:
-                print("Percentage of units displayed should be smaller than 100.  Please change the value.")
-                return 
-            self.percentage_float = percentage_float
-        except:
-            print("Cannot parse percentage value. Must be a number. Please change the value.")
+            num_units = int(self.numUnitsForm.text())
+        except ValueError:
+            print("Cannot parse the number of units to relabel. Must be a whole number. Please change the value.")
             return
-        
+        if num_units < 1:
+            print("Number of units to relabel should be at least 1. Please change the value.")
+            return
+        self.num_units_to_relabel = num_units
+
+    def relabel_targets(self):
+        """
+        The analyzers whose units can be relabelled: the analyzers in the project (section 2) and the
+        new analyzers the models were applied to (section 3.3). Each is a dict with the analyzer `path`,
+        the `save_folder` and `file_prefix` of its files, and its `analyzer_index` in the project (None for new analyzers).
+        """
+        targets = []
+        for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
+            targets.append(dict(
+                path=str(analyzer['path']),
+                save_folder=Path(self.project.folder_name) / analyzer['analyzer_in_project'],
+                file_prefix="",
+                analyzer_index=analyzer_index,
+                analyzer=analyzer,
+            ))
+        for applied in self.project.config.get("applied_analyzers", []):
+            targets.append(dict(
+                path=applied['path'],
+                save_folder=Path(applied['output_folder']),
+                file_prefix=f"{applied['output_name']}__",
+                analyzer_index=None,
+                analyzer={'path': applied['path']},
+            ))
+        return targets
+
+    def pick_units_to_relabel(self):
+
+        problem = self.model_selector.describe_problem()
+        if problem is not None:
+            print(problem)
+            return
+
+        targets = self.relabel_targets()
+        if len(targets) == 0:
+            print("No analyzers in the project. Add analyzers in section 2, or apply the models to new analyzers in section 3.3.")
+            return
+
+        mode = self.model_selector.mode()
+        model_folders = [model_folder for model_folder, _ in self.model_selector.selected_models()]
+        selection_key = self.model_selector.selection_key()
+
+        print(f"\nFinding the {self.num_units_to_relabel} least confident units of {self.selection_description()}, across {len(targets)} analyzers...")
+        with BusyNotice(
+            self, f"Finding the {self.num_units_to_relabel} least confident units",
+            f"Ranking the units of {len(targets)} analyzers by the confidence of {self.selection_description()}. "
+            "Analyzers without saved predictions are labelled by the model(s) first, which takes longer the first time.",
+        ):
+            num_picked, skipped = find_least_confident_units(targets, mode, model_folders, selection_key, self.num_units_to_relabel)
+
+        for target_index, target in enumerate(targets):
+            print(f"    {target['path']}: {num_picked[target_index]} units")
+        for target, error in skipped:
+            print(f"    Skipped {target['path']}: {error}")
+        print()
+
         self.make_relabel_button_list()
 
+        if len(skipped) == len(targets):
+            self.show_problem(
+                "Could not rank the units",
+                "The chosen model(s) could not label any of the analyzers:\n\n"
+                + "\n".join(f"• {Path(str(target['path'])).name}: {error}" for target, error in skipped),
+            )
+        elif sum(num_picked.values()) == 0:
+            self.show_problem(
+                "No units left to relabel",
+                "Every unit of your analyzers already has a label (curated, imported or relabelled), so there is "
+                "nothing new to ask about. Add new analyzers in section 3.3 to continue.",
+            )
+
     def add_from_hfh(self):
-        
-        dialog = UrlInputDialog(default = 'AnoushkaJain3/UnitRefine-mice-sua-classifier', background_color="FFDAB9")
 
-        if dialog.exec():
-            url = dialog.get_url()
-            if repo_exists(url):
-                model_directory = self.project.folder_name / "models" / url.split('/')[-1]
-                model_directory.mkdir(exist_ok=True)
+        existing_repo_ids = []
+        for model_folder, hfh_or_local in self.project.model_paths:
+            hfh_path = Path(model_folder) / 'hfh_path.txt'
+            if hfh_or_local == "hfh" and hfh_path.is_file():
+                existing_repo_ids.append(hfh_path.read_text().strip())
 
-                self.project.model_paths = self.project.model_paths + [(model_directory, "hfh")]
+        dialog = HFHModelsDialog(existing_repo_ids, parent=self)
+        if not dialog.exec():
+            return
 
-                from huggingface_hub import snapshot_download
+        repo_ids = dialog.get_repo_ids()
+        if len(repo_ids) == 0:
+            print("No models selected.")
+            return
 
-                print(f"Downloading model from HuggingFaceHub repo {url}.\n")
-
-                QtWidgets.QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-
+        added_repo_ids = []
+        with BusyNotice(self, f"Downloading {len(repo_ids)} model{'s' if len(repo_ids) > 1 else ''} from the Hugging Face Hub", "") as notice:
+            for repo_index, repo_id in enumerate(repo_ids):
+                notice.update(f"{repo_index + 1} of {len(repo_ids)}: {repo_id}")
                 try:
-                    snapshot_download(url, local_dir=model_directory)
-                finally:
-                    QtWidgets.QApplication.restoreOverrideCursor()
+                    if self.download_hfh_model(repo_id):
+                        added_repo_ids.append(repo_id)
+                except Exception as e:
+                    print(f"Could not download model from {repo_id}: {e}\n")
 
-                with open(model_directory / 'hfh_path.txt', 'w') as output:
-                    output.write(url)
+        self.make_model_list()
+        print(f"Added {len(added_repo_ids)}/{len(repo_ids)} models to project: {added_repo_ids}\n")
 
-                model_info_path = model_directory / "model_info.json"
-                with open(model_info_path, 'r') as f:
-                    model_info = json.load(f)
+    def download_hfh_model(self, url):
+        """Downloads one model from the Hugging Face Hub into the project. Returns True if it was added."""
 
-                updated_model_info = {}
-                translation_dict = {
-                    'MUA': ['mua'],
-                    'good': ['sua', 'SUA', 'neural'],
-                    'noise': [],
-                }
-                for label_index, label in model_info['label_conversion'].items():
-                    new_label = label
-                    for sigui_label, user_labels in translation_dict.items():
-                        if label in user_labels:
-                            new_label = sigui_label
-                    
-                    updated_model_info[label_index] = new_label
-                model_info['label_conversion'] = updated_model_info
+        if not repo_exists(url):
+            print(f"Repo {url} does not exist.")
+            return False
 
-                model_info_path = model_directory / "model_info.json"
-                with open(model_info_path, 'w') as f:
-                    json.dump(model_info, f, indent=4)
+        model_directory = self.project.folder_name / "models" / url.split('/')[-1]
+        if model_directory.is_dir():
+            print(f"Skipping {url}: a model folder called {model_directory.name} already exists in the project.")
+            return False
 
-                self.make_model_list()
+        from huggingface_hub import snapshot_download
 
-                print(f"Model at {url} successfully added to project.\n")
+        print(f"Downloading model from HuggingFaceHub repo {url}.\n")
 
-            else:
-                print(f"Repo {url} does not exist.")
+        try:
+            snapshot_download(url, local_dir=model_directory)
+        except Exception:
+            # don't leave a half-downloaded model in the project
+            shutil.rmtree(model_directory, ignore_errors=True)
+            raise
+
+        with open(model_directory / 'hfh_path.txt', 'w') as output:
+            output.write(url)
+
+        model_info_path = model_directory / "model_info.json"
+        with open(model_info_path, 'r') as f:
+            model_info = json.load(f)
+
+        updated_model_info = {}
+        translation_dict = {
+            'MUA': ['mua'],
+            'good': ['sua', 'SUA', 'neural'],
+            'noise': [],
+        }
+        for label_index, label in model_info['label_conversion'].items():
+            new_label = label
+            for sigui_label, user_labels in translation_dict.items():
+                if label in user_labels:
+                    new_label = sigui_label
+
+            updated_model_info[label_index] = new_label
+        model_info['label_conversion'] = updated_model_info
+
+        with open(model_info_path, 'w') as f:
+            json.dump(model_info, f, indent=4)
+
+        self.project.model_paths = self.project.model_paths + [(model_directory, "hfh")]
+
+        print(f"Model at {url} successfully added to project.\n")
+        return True
 
     def make_apply_code(self):
 
+        problem = self.model_selector.describe_problem()
+        if problem is not None:
+            print(problem)
+            return
+
+        model_folders = [model_folder for model_folder, _ in self.model_selector.selected_models()]
+
+        # the function names of the installed SpikeInterface version (auto_label_units was renamed)
+        label_units = label_units_function().__name__
+        import spikeinterface.curation as spikeinterface_curation
+        has_cascade_function = hasattr(spikeinterface_curation, "unitrefine_label_units")
+
         code_text = "\n"
-        code_text += "import spikinterface.full as si\n\n"
+        code_text += "import spikeinterface.full as si\n"
+        code_text += "import spikeinterface.curation as sc\n\n"
         code_text += "# point this path to the analyzer you want to apply the model to\n"
         code_text += "path_to_analyzer = 'path/to/analyzer'\n"
         code_text += "analyzer_to_curate = si.load_sorting_analyzer(path_to_analyzer)\n\n"
 
-        code_text += f"model_folder = {self.project.selected_model}\n\n"
-        code_text += "# labels will be a list of curated labels, determined by the model.\n"
-        code_text += "labels = si.auto_label_units(\n\tsorting_analyzer = analyzer_to_curate,\n\tmodel_folder = model_folder,\n)\n\n"
-        code_text += "Read more here: https://spikeinterface.readthedocs.io/en/stable/tutorials/curation/plot_1_automated_curation.html\n\n"      
-            
+        if self.model_selector.mode() == "cascade" and has_cascade_function:
+            code_text += "# Cascade, as in the UnitRefine paper: noise vs neural, then SUA vs MUA on the neural units\n"
+            code_text += (f"labels = sc.unitrefine_label_units(\n\tsorting_analyzer = analyzer_to_curate,\n"
+                          f"\tnoise_neural_classifier = r'{model_folders[0]}',\n\tsua_mua_classifier = r'{model_folders[1]}',\n)\n\n")
+        elif self.model_selector.mode() == "cascade":
+            code_text += "# Cascade: layer 1 separates noise from neural units, layer 2 splits the neural units into SUA and MUA\n"
+            code_text += f"layer1 = sc.{label_units}(\n\tsorting_analyzer = analyzer_to_curate,\n\tmodel_folder = r'{model_folders[0]}',\n\ttrust_model = True,\n)\n"
+            code_text += f"layer2 = sc.{label_units}(\n\tsorting_analyzer = analyzer_to_curate,\n\tmodel_folder = r'{model_folders[1]}',\n\ttrust_model = True,\n)\n\n"
+            code_text += "is_noise = layer1['prediction'] == 'noise'\n"
+            code_text += f"layer2_labels = layer2['prediction'].map({QUALITY_ALIASES})\n"
+            code_text += "labels = layer2_labels.where(~is_noise, 'noise')\n"
+            code_text += "# confidence of the cascade: p(layer 1) x p(layer 2) for neural units, p(layer 1) for noise units\n"
+            code_text += "confidence = (layer1['probability'] * layer2['probability']).where(~is_noise, layer1['probability'])\n\n"
+        else:
+            for model_folder in model_folders:
+                code_text += f"# labels will be a DataFrame of curated labels and their probability, determined by {model_folder.name}.\n"
+                code_text += f"labels = sc.{label_units}(\n\tsorting_analyzer = analyzer_to_curate,\n\tmodel_folder = r'{model_folder}',\n\ttrust_model = True,\n)\n\n"
+
+        code_text += "# Read more here: https://spikeinterface.readthedocs.io/en/stable/tutorials/curation/plot_1_automated_curation.html\n\n"
+
         print(code_text)
 
     def selectDirectoryDialog(self):
@@ -485,43 +914,96 @@ class MainWindow(QtWidgets.QWidget):
             
     def make_curation_button_list(self):
 
-        for widget_no in range(3, self.saLayout.count()):
-            self.saLayout.itemAt(widget_no).widget().deleteLater()
+        clear_layout(self.analyzer_rows_layout)
 
-        for analyzer_index, analyzer in self.project.analyzers.items():
+        if len(self.project.analyzers) == 0:
+            self.analyzer_rows_layout.addWidget(list_message("No analyzers yet: add a Sorting Analyzer folder to start."))
+
+        for row_index, (analyzer_index, analyzer) in enumerate(self.project.analyzers.items()):
 
             selected_directory = analyzer['path']
 
-            if len(str(selected_directory)) > 50:
-               selected_directory_text_display = "..." + str(selected_directory)[-50:]
-            else:
-                selected_directory_text_display = selected_directory
+            curate_button = theme.make_sigui(QtWidgets.QPushButton("Curate"))
+            curate_button.setToolTip(f"Label the units of {selected_directory} in the SpikeInterface-GUI")
+            curate_button.clicked.connect(
+                lambda _checked=False, directory=selected_directory, index=analyzer_index: self.show_curation_window(directory, index))
 
-            curate_button = QtWidgets.QPushButton(f'Curate "{selected_directory_text_display}"')
-            curate_button.clicked.connect(partial(self.show_curation_window, selected_directory, analyzer_index))
-            self.saLayout.addWidget(curate_button,4+analyzer_index,0)
+            or_text = muted_label("or", word_wrap=False)
 
-            self.btn_settings = QtWidgets.QToolButton()
-
-            icon = self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon) 
-            self.btn_settings.setIcon(icon)
-            self.btn_settings.setToolTip(f"Remove {analyzer_index} from curation")
-            self.btn_settings.clicked.connect(partial(self.remove_analyzer, analyzer_index))
-
-            self.saLayout.addWidget( self.btn_settings,4+analyzer_index,2)
-    
             curation_output_folder = Path(self.project.folder_name) / Path(f"analyzers/analyzer_{analyzer_index}")
             curation_output_folder.mkdir(exist_ok=True)
 
-            if (curation_output_folder / "all_metrics.csv").is_file() and (curation_output_folder / "labels.csv").is_file():
-                just_labels = pd.read_csv(curation_output_folder / "labels.csv")
-                all_metrics = pd.read_csv(curation_output_folder / "all_metrics.csv")
-                not_curated_text = QtWidgets.QLabel(f"{len(just_labels)}/{len(all_metrics)}")
-
+            imported_source_path = curation_output_folder / "imported_labels_source.txt"
+            if imported_source_path.is_file():
+                import_labels_button = QtWidgets.QPushButton("Imported ✓")
+                import_labels_button.setToolTip(f"Labels imported from {imported_source_path.read_text()}. Click to import again.")
             else:
-                not_curated_text = QtWidgets.QLabel("---")
+                import_labels_button = QtWidgets.QPushButton("Import labels")
+                import_labels_button.setToolTip(
+                    "Import labels from Phy (cluster_group.tsv, cluster_info.tsv), SortingView or SpikeInterface "
+                    "curation (.json), or a .csv/.tsv with unit_id and quality columns"
+                )
+            import_labels_button.clicked.connect(lambda _checked=False, index=analyzer_index: self.import_labels_dialog(index))
 
-            self.saLayout.addWidget(not_curated_text,4+analyzer_index,1)
+            if (curation_output_folder / "all_metrics.csv").is_file() and (curation_output_folder / "labels.csv").is_file():
+                num_labelled = len(pd.read_csv(curation_output_folder / "labels.csv"))
+                num_units = len(pd.read_csv(curation_output_folder / "all_metrics.csv"))
+                count_chip = chip(f"{num_labelled}/{num_units} labelled", done=num_labelled == num_units)
+            else:
+                count_chip = chip("not labelled")
+            count_chip.setMinimumWidth(110)
+
+            remove_button = QtWidgets.QToolButton()
+            remove_button.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon))
+            remove_button.setToolTip(f"Remove {selected_directory} from the project")
+            remove_button.clicked.connect(lambda _checked=False, index=analyzer_index: self.remove_analyzer(index))
+
+            self.analyzer_rows_layout.addWidget(PathRow(
+                str(selected_directory), [curate_button, or_text, import_labels_button, count_chip, remove_button], first=row_index == 0))
+
+        self.update_summaries()
+        self.schedule_figure_refresh()
+
+    def ask_label_file(self):
+        """Asks for a label file; returns "" if cancelled."""
+        label_file, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select label file",
+            "",
+            "All supported label files (*.tsv *.csv *.json);;"
+            "Phy (cluster_group.tsv cluster_info.tsv cluster_KSLabel.tsv);;"
+            "SortingView or SpikeInterface curation (*.json);;"
+            "Table with unit_id and quality columns (*.csv *.tsv);;"
+            "All files (*)",
+        )
+        return label_file
+
+    def import_labels_dialog(self, analyzer_index):
+
+        label_file = self.ask_label_file()
+        if label_file == "":
+            return
+
+        analyzer_dict = self.project.analyzers[analyzer_index]
+        save_folder = Path(self.project.folder_name) / Path(f"analyzers/analyzer_{analyzer_index}")
+
+        labels_path = save_folder / "labels.csv"
+        existing_labels = pd.read_csv(labels_path) if labels_path.is_file() else None
+
+        print(f"\nImporting labels from {label_file} for analyzer at {analyzer_dict['path']}...")
+        try:
+            with BusyNotice(self, "Importing labels", f"Reading {Path(label_file).name} and the metrics of the analyzer's units."):
+                labels_df = import_labels(label_file, analyzer_dict['path'], save_folder, existing_labels=existing_labels)
+        except Exception as e:
+            print(f"Could not import labels: {e}")
+            QtWidgets.QMessageBox.warning(self, "Could not import labels", str(e))
+            return
+
+        # keep the in-memory project in sync, so a later project.save() does not overwrite the imported labels
+        analyzer_dict['labels'] = labels_df
+        (save_folder / "imported_labels_source.txt").write_text(str(label_file))
+
+        self.make_curation_button_list()
 
     def remove_analyzer(self, analyzer_index):
 
@@ -540,97 +1022,377 @@ class MainWindow(QtWidgets.QWidget):
 
     def make_relabel_button_list(self):
 
-        for widget_no in range(4, self.relabelLayout.count()):
-            self.relabelLayout.itemAt(widget_no).widget().deleteLater()
+        clear_layout(self.relabel_rows_layout)
 
-        for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
+        selection_key = self.model_selector.selection_key()
+        targets = self.relabel_targets()
 
-            selected_directory = analyzer['path']
+        if len(targets) == 0:
+            self.relabel_rows_layout.addWidget(list_message(
+                "No analyzers yet: add them in section 2, or apply the models to new analyzers in section 3.3."))
 
-            if len(str(selected_directory)) > 40:
-               selected_directory_text_display = "..." + str(selected_directory)[-40:]
-            else:
-                selected_directory_text_display = selected_directory
+        total_relabelled, total_picked = 0, 0
+        for target_index, target in enumerate(targets):
 
-            curate_button = QtWidgets.QPushButton(f'Relabel "{selected_directory_text_display}"')
-            curate_button.clicked.connect(partial(self.show_validate_window, analyzer, analyzer_index, True))
+            # same groups as in section 3.3
+            is_first_new = target['analyzer_index'] is None and (target_index == 0 or targets[target_index - 1]['analyzer_index'] is not None)
+            if target_index == 0 and target['analyzer_index'] is not None:
+                self.relabel_rows_layout.addWidget(group_label("Analyzers used during training the models:"))
+            elif is_first_new:
+                self.relabel_rows_layout.addWidget(group_label("New analyzers the models were applied to:"))
 
-            button_text = "---"
-            if self.project.selected_model is not None:
-                relabelled_units_path = self.project.folder_name / analyzer['analyzer_in_project'] / f"relabelled_units_{self.project.selected_model.name}.csv"    
-                all_metrics_path = self.project.folder_name / analyzer['analyzer_in_project'] / "all_metrics.csv"                     
-                if all_metrics_path.is_file() and relabelled_units_path.is_file():
-                    all_metrics = pd.read_csv(all_metrics_path)
-                    labels = pd.read_csv(relabelled_units_path)
-                    button_text = f"{len(labels)}/{int(np.ceil(len(all_metrics)*self.percentage_float/100))}"
+            relabel_button = theme.make_sigui(QtWidgets.QPushButton("Relabel"))
+            # lambda drops the `checked` argument which clicked passes
+            relabel_button.clicked.connect(lambda _checked=False, target=target: self.show_validate_window(
+                target['analyzer'], target['analyzer_index'], True, save_folder=target['save_folder'], file_prefix=target['file_prefix']))
 
-            self.relabelLayout.addWidget(curate_button,3+analyzer_index,0,1,3)
-            self.relabelLayout.addWidget(QtWidgets.QLabel(button_text),3+analyzer_index,4,1,3)
+            status_chip = chip("not searched yet")
+            relabel_button.setToolTip("Click Find least confident units first")
+            if selection_key is not None and units_to_relabel_path(target, selection_key).is_file():
+                units_to_relabel = pd.read_csv(units_to_relabel_path(target, selection_key))
+                num_relabelled = 0
+                if relabelled_units_path(target, selection_key).is_file():
+                    relabelled = set(pd.read_csv(relabelled_units_path(target, selection_key)).dropna(subset=['quality'])['unit_id'].astype(str))
+                    num_relabelled = int(units_to_relabel['unit_id'].astype(str).isin(relabelled).sum())
+                total_relabelled += num_relabelled
+                total_picked += len(units_to_relabel)
+                if len(units_to_relabel) == 0:
+                    status_chip = chip("no units picked")
+                    relabel_button.setEnabled(False)
+                    relabel_button.setToolTip("None of the least confident units are in this analyzer")
+                else:
+                    status_chip = chip(f"{num_relabelled}/{len(units_to_relabel)} relabelled", done=num_relabelled == len(units_to_relabel))
+                    relabel_button.setToolTip("Open the least confident units of this analyzer in the SpikeInterface-GUI")
+            status_chip.setMinimumWidth(120)
+
+            self.relabel_rows_layout.addWidget(PathRow(str(target['path']), [status_chip, relabel_button], first=False))
+
+        self.relabel_section.set_summary(f"{total_relabelled}/{total_picked} least confident units relabelled" if total_picked > 0 else "")
+        self.make_retraining_history()
+        self.schedule_figure_refresh()
+
+    def make_retraining_history(self):
+        """The retraining rounds of the chosen models: what each added, from where, and the change in accuracy."""
+        names = self.model_selector.selected_model_names()
+        lineages = dict(self.model_lineage(name) for name in names)
+        num_rounds = self.history_table.set_lineages(lineages)
+        self.history_table.setVisible(num_rounds > 0)
+        if len(names) == 0:
+            self.history_message.setText("Choose a model in 3.2 to see its retraining rounds.")
+        elif num_rounds == 0:
+            self.history_message.setText("The chosen model(s) have not been retrained yet: each round you retrain appears here.")
+        else:
+            self.history_message.setText(
+                "Each round: the units you added and where they come from (<b>Details</b> lists every unit with its old "
+                "and new label), and the balanced accuracy on held-out units of the same classifier trained without, "
+                "then with them.")
 
     def make_validate_button_list(self):
 
-        for widget_no in range(1, self.validateLayout.count()):
-           self.validateLayout.itemAt(widget_no).widget().deleteLater()
+        clear_layout(self.validate_rows_layout)
 
-        for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
+        # the new analyzers: predictions on recordings the models were not trained on
+        new_list, new_rows_layout = list_box()
+        applied_analyzers = self.project.config.get("applied_analyzers", [])
+        if len(applied_analyzers) == 0:
+            new_rows_layout.addWidget(list_message("No new analyzers yet: add them with the buttons above."))
 
-            selected_directory = analyzer['path']
+        for applied_index, applied in enumerate(applied_analyzers):
+            file_prefix = f"{applied['output_name']}__"
+            labels_path = Path(applied['output_folder']) / f"{file_prefix}labels.csv"
 
-            if len(str(selected_directory)) > 40:
-               selected_directory_text_display = "..." + str(selected_directory)[-40:]
+            if labels_path.is_file():
+                import_labels_button = QtWidgets.QPushButton("Imported ✓")
+                source_path = Path(applied['output_folder']) / f"{file_prefix}imported_labels_source.txt"
+                source = source_path.read_text() if source_path.is_file() else str(labels_path)
+                import_labels_button.setToolTip(f"Labels imported from {source}. Click to import again.")
+                labels_chip = chip(f"{len(pd.read_csv(labels_path))} labelled", done=True)
+                labels_chip.setMinimumWidth(90)
             else:
-                selected_directory_text_display = selected_directory
+                import_labels_button = QtWidgets.QPushButton("Import labels")
+                import_labels_button.setToolTip("Optional: your labels for this analyzer, to compare them with the predictions")
+                # the Import labels button already says there are none
+                labels_chip = None
+            import_labels_button.clicked.connect(lambda _checked=False, applied=applied: self.import_labels_for_new_analyzer(applied))
 
-            curate_button = QtWidgets.QPushButton(f'Inspect "{selected_directory_text_display}"')
-            curate_button.clicked.connect(partial(self.show_validate_window, analyzer, analyzer_index, False))
+            inspect_button = theme.make_sigui(QtWidgets.QPushButton("Inspect"))
+            inspect_button.setToolTip(f"Open in the SpikeInterface-GUI with the models' labels and confidence. "
+                                      f"Predictions are saved in {applied['output_folder']}")
+            inspect_button.clicked.connect(lambda _checked=False, applied=applied: self.show_applied_analyzer_window(applied))
 
-            self.validateLayout.addWidget(curate_button,1+analyzer_index,0,1,3)
+            remove_button = QtWidgets.QToolButton()
+            remove_button.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon))
+            remove_button.setToolTip("Remove from this list (saved csv files are kept)")
+            remove_button.clicked.connect(lambda _checked=False, index=applied_index: self.remove_applied_analyzer(index))
+            new_rows_layout.addWidget(PathRow(
+                applied['path'], [widget for widget in [import_labels_button, labels_chip, inspect_button, remove_button] if widget is not None], first=applied_index == 0))
+        self.validate_rows_layout.addWidget(new_list)
+        self.validate_rows_layout.addWidget(muted_label(
+            "<b>Import labels</b> (optional) to see how a model performs on your recordings. <b>Import labels</b> reads "
+            "Phy (cluster_group.tsv, cluster_info.tsv), SortingView (.json), SpikeInterface curation (.json), or a "
+            ".csv/.tsv with <i>unit_id</i> and <i>quality</i> columns. Labels good, MUA and noise are used; others "
+            "(e.g. unsorted) are skipped."))
+
+        # the training analyzers are hidden at first: predictions on training data look better than they are
+        toggle_button = theme.make_flat(QtWidgets.QPushButton(
+            ("▾ Hide" if self.show_training_analyzers else "▸ Show") + " the analyzers used for training"))
+        toggle_button.setToolTip("Inspecting them shows what the model learned, but not how well it does: "
+                                 "predictions on training data look better than they are")
+        toggle_button.clicked.connect(self.toggle_training_analyzers)
+        toggle_layout = QtWidgets.QHBoxLayout()
+        toggle_layout.addWidget(toggle_button)
+        toggle_layout.addStretch()
+        self.validate_rows_layout.addLayout(toggle_layout)
+
+        if self.show_training_analyzers:
+            training_list, training_rows_layout = list_box()
+            if len(self.project.analyzers) == 0:
+                training_rows_layout.addWidget(list_message("None yet: add analyzers in section 2."))
+            for analyzer_index, analyzer in enumerate(self.project.analyzers.values()):
+                inspect_button = theme.make_sigui(QtWidgets.QPushButton("Inspect"))
+                inspect_button.setToolTip("Open the analyzer in the SpikeInterface-GUI with the models' labels and confidence")
+                inspect_button.clicked.connect(lambda _checked=False, analyzer=analyzer, analyzer_index=analyzer_index: self.show_validate_window(analyzer, analyzer_index, False))
+                training_rows_layout.addWidget(PathRow(str(analyzer['path']), [inspect_button], first=analyzer_index == 0))
+            self.validate_rows_layout.addWidget(training_list)
+
+        self.update_summaries()
+        self.schedule_figure_refresh()
+
+    def selection_description(self):
+        names = self.model_selector.selected_model_names()
+        if self.model_selector.mode() == "cascade":
+            return f"cascade of {names[0]} (layer 1) and {names[1]} (layer 2)"
+        return ", ".join(names)
+
+    def show_problem(self, title, message):
+        print(message)
+        QtWidgets.QMessageBox.information(self, title, message)
+
+    def add_new_analyzers_from_folder(self):
+        """Adds one new analyzer, or all analyzers inside a folder, and applies the chosen models to them."""
+
+        problem = self.model_selector.describe_problem()
+        if problem is not None:
+            self.show_problem("Choose a model first", problem)
+            return
+
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select a Sorting Analyzer folder, or a folder containing several")
+        if folder == "":
+            return
+        analyzer_paths = [str(path) for path in find_analyzers(folder)]
+        if len(analyzer_paths) == 0:
+            self.show_problem("No Sorting Analyzer found", f"No Sorting Analyzer was found in {folder} (searched 3 folder levels down).")
+            return
+        self.apply_to_new_analyzers(analyzer_paths)
+
+    def add_new_analyzer_from_s3(self):
+
+        problem = self.model_selector.describe_problem()
+        if problem is not None:
+            self.show_problem("Choose a model first", problem)
+            return
+
+        dialog = UrlInputDialog()
+        if not dialog.exec():
+            return
+        url = dialog.get_url()
+        if not is_path_remote(url):
+            self.show_problem("Not an s3 path", f"{url} is not a valid analyzer path.")
+            return
+        self.apply_to_new_analyzers([url])
+
+    def apply_to_new_analyzers(self, analyzer_paths):
+        """
+        Applies the chosen models to new analyzers, saving their predictions in the project's predictions folder,
+        and adds them to the list in 3.3. Analyzers already in the list are skipped.
+        """
+        mode = self.model_selector.mode()
+        model_folders = [model_folder for model_folder, _ in self.model_selector.selected_models()]
+        selection_key = self.model_selector.selection_key()
+        output_folder = Path(self.project.folder_name) / "predictions"
+
+        applied_analyzers = self.project.config.get("applied_analyzers", [])
+        listed = {normalise_path(applied['path']) for applied in applied_analyzers}
+        already_listed = [path for path in analyzer_paths if normalise_path(path) in listed]
+        analyzer_paths = [path for path in analyzer_paths if normalise_path(path) not in listed]
+        if len(analyzer_paths) == 0:
+            self.show_problem("Already added", "These analyzers are already in the list.")
+            return
+
+        # file names must not clash with the analyzers already in the list, which keep theirs
+        used_names = {applied['output_name'] for applied in applied_analyzers}
+        candidate_names = analyzer_output_names([applied['path'] for applied in applied_analyzers] + analyzer_paths)[len(applied_analyzers):]
+        output_names = []
+        for name in candidate_names:
+            unique_name, number = name, 2
+            while unique_name in used_names:
+                unique_name, number = f"{name}_{number}", number + 1
+            used_names.add(unique_name)
+            output_names.append(unique_name)
+
+        with BusyNotice(
+            self, f"Applying {self.selection_description()} to {len(analyzer_paths)} analyzer{'s' if len(analyzer_paths) > 1 else ''}",
+            "The predictions are saved, so they are only computed once.",
+        ):
+            results = apply_to_analyzers(analyzer_paths, mode, model_folders, selection_key, output_folder, output_names=output_names)
+
+        # remember the analyzers, so they can be inspected later
+        for result in results:
+            if "error" not in result:
+                applied_analyzers.append(dict(path=result['path'], output_folder=str(output_folder), output_name=result['output_name']))
+        self.project.config["applied_analyzers"] = applied_analyzers
+        self.project.save_config()
+
+        failed = [result for result in results if "error" in result]
+        print(f"\nApplied {self.selection_description()} to {len(results) - len(failed)}/{len(results)} analyzers. Predictions saved in {output_folder}.\n")
+        if len(failed) > 0 or len(already_listed) > 0:
+            lines = [f"• {Path(str(result['path'])).name}: {result['error']}" for result in failed]
+            lines += [f"• {Path(str(path)).name}: already in the list" for path in already_listed]
+            QtWidgets.QMessageBox.warning(self, "Some analyzers were not added", "\n\n".join(lines))
+
+        self.make_validate_button_list()
+        self.make_relabel_button_list()
+
+    def import_labels_for_new_analyzer(self, applied):
+        """Labels of a new analyzer, which the models are compared with (they are never trained on them)."""
+
+        label_file = self.ask_label_file()
+        if label_file == "":
+            return
+        save_folder = Path(applied['output_folder'])
+        file_prefix = f"{applied['output_name']}__"
+        labels_path = save_folder / f"{file_prefix}labels.csv"
+        existing_labels = pd.read_csv(labels_path) if labels_path.is_file() else None
+
+        print(f"\nImporting labels from {label_file} for analyzer at {applied['path']}...")
+        try:
+            with BusyNotice(self, "Importing labels", f"Reading {Path(label_file).name} and the metrics of the analyzer's units."):
+                import_labels(label_file, applied['path'], save_folder, existing_labels=existing_labels, file_prefix=file_prefix)
+        except Exception as e:
+            print(f"Could not import labels: {e}")
+            QtWidgets.QMessageBox.warning(self, "Could not import labels", str(e))
+            return
+        (save_folder / f"{file_prefix}imported_labels_source.txt").write_text(str(label_file))
+
+        self.make_validate_button_list()
+
+    def toggle_training_analyzers(self):
+        self.show_training_analyzers = not self.show_training_analyzers
+        self.make_validate_button_list()
+
+    def remove_applied_analyzer(self, applied_index):
+        applied_analyzers = self.project.config.get("applied_analyzers", [])
+        self.project.config["applied_analyzers"] = [applied for index, applied in enumerate(applied_analyzers) if index != applied_index]
+        self.project.save_config()
+        self.make_validate_button_list()
+
+    def show_applied_analyzer_window(self, applied):
+        analyzer = {'path': applied['path']}
+        self.show_validate_window(analyzer, None, False, save_folder=applied['output_folder'], file_prefix=f"{applied['output_name']}__")
 
 
     def retrain_model(self):
+        """Retrains every selected model (both layers for a cascade) with the units relabelled for this selection."""
+
+        problem = self.model_selector.describe_problem()
+        if problem is not None:
+            print(problem)
+            return
+
+        names_to_retrain = self.models_to_retrain()
+        selected_models = [model for model in self.model_selector.selected_models() if model[0].name in names_to_retrain]
+        selection_key = self.model_selector.selection_key()
+
+        if len(selected_models) == 1:
+            retrained_names = [self.retrainedModelNameForm.text().strip()]
+        else:
+            retrained_names = self.retrained_names()
+
+        results = []
+        with BusyNotice(self, "Retraining", "") as notice:
+            for (model_folder, _), retrained_name in zip(selected_models, retrained_names):
+                notice.update(f"Retraining {model_folder.name} as {retrained_name}, with the units you relabelled.")
+                print(f"\nRetraining {model_folder.name} as {retrained_name}...")
+                results.append((model_folder.name, self.retrain_one_model(model_folder, retrained_name, selection_key)))
+
+        self.make_model_list()
+        self.show_retrain_summary(results)
+
+    def show_retrain_summary(self, results):
+        """Tells the user what retraining did, and what they can do next."""
+
+        lines = []
+        for model_name, result in results:
+            if not result.get("retrained", True):
+                reasons = "".join(f"<br>• {reason}" for reason in result["reasons"])
+                lines.append(f"<li><b>{model_name}</b>: not retrained, none of your relabelled units could be added:"
+                             f"<span style='color:{theme.DANGER}'>{reasons}</span></li>")
+            else:
+                recordings = ", ".join(f"{Path(str(path)).parent.name}/{Path(str(path)).name} ({len(unit_ids)})"
+                                       for path, unit_ids in result['recordings'].items())
+                change = result['held_out_balanced_accuracy'] - result['held_out_before']
+                lines.append(
+                    f"<li><b>{model_name}</b> → <b>{result['name']}</b>: learned from {result['num_units_added']} "
+                    f"relabelled units ({recordings}). Held-out balanced accuracy {result['held_out_before']:.2f} → "
+                    f"{result['held_out_balanced_accuracy']:.2f} ({change:+.2f}) on {result['num_held_out']} units.</li>"
+                )
+        retrained_any = any(result.get("retrained", True) for _, result in results)
+
+        if retrained_any:
+            next_steps = (
+                "<p>The retrained model(s) are now selected in <b>3.2 Choose your models</b>. What you can do next:</p><ul>"
+                "<li><b>See what changed</b>: the <i>Retraining history</i> in section 4 lists every round, and "
+                "<b>Details</b> every unit added with its old and new label.</li>"
+                "<li><b>Check whether it improved</b>: look at the <i>Accuracy over rounds</i> figure in section 4 "
+                "(it is updated in the background, in a few seconds).</li>"
+                "<li><b>Another round of active learning</b>: in section 4, click <b>Find least confident units</b>, "
+                "relabel them, and retrain again.</li>"
+                "<li><b>Done?</b> If the accuracy no longer improves, or the least confident units look right to you, "
+                "the model is ready: use <b>+ Apply to new analyzers</b> (section 3.3) to label your recordings.</li></ul>"
+            )
+        elif all(result.get("no_relabels") for _, result in results):
+            next_steps = (
+                "<p>Relabel some units first: in section 4, click <b>Find least confident units</b>, then "
+                "<b>Relabel</b>, and give units a label different from the model's or a new label.</p>"
+            )
+        else:
+            next_steps = "<p>The terminal shows more details.</p>"
+
+        message_box = QtWidgets.QMessageBox(self)
+        message_box.setWindowTitle("Retraining finished" if retrained_any else "Nothing to retrain")
+        message_box.setTextFormat(Qt.TextFormat.RichText)
+        message_box.setText(f"<ul>{''.join(lines)}</ul>{next_steps}")
+        message_box.exec()
+
+    def retrain_one_model(self, model_folder, retrained_model_name, selection_key):
         from sklearn.model_selection import train_test_split
         from sklearn.metrics import balanced_accuracy_score
 
-        
-        retrained_model_name = self.retrainedModelNameForm.text()
-
-        current_model_name = self.combo_box.currentText()
-        if current_model_name == '':
-            print("No models trained or loaded into project - you are trying to retrain a non-existent model.")
-            return
-        self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
-
-        retrained_model_folder = self.project.selected_model.parent / retrained_model_name
+        model_folder = Path(model_folder)
+        retrained_model_folder = model_folder.parent / retrained_model_name
 
         model, model_info = load_model(
-            model_folder=self.project.selected_model, trust_model=True
+            model_folder=model_folder, trust_model=True
         )
         label_conversion = model_info['label_conversion']
         invert_label_conversion = {val: int(key) for key, val in label_conversion.items()}
         model_metric_names = model.feature_names_in_
-        
-        # map GUI labels to model labels to handle models trained with "not-sua" instead of "MUA" or "noise"
-        non_sua_label = "not-sua" if "not-sua" in invert_label_conversion else None
+        model_classes = list(invert_label_conversion.keys())
+
+        def _map_quality(q: str):
+            # map GUI labels to model labels to handle cascade models, e.g. trained with "not-sua" or "neural"
+            return map_quality_to_model_class(q, model_classes)
 
         
-        def _map_quality(q: str) -> str:
-            # label already supported by the model
-            if q in invert_label_conversion:
-                return q
-            # collapse MUA + noise into non-SUA if model uses that convention
-            if non_sua_label is not None and q in ("MUA", "noise"):
-                return non_sua_label
-            return q  # will raise KeyError later if truly unsupported
-        
-        
+        # keep the imputer as fitted: changing keep_empty_features after fitting adds back metrics that
+        # were empty during training, so the imputer output no longer matches what the scaler expects
         model_imputer = model['imputer']
-        model_imputer.keep_empty_features = True
 
         model_scaler = model['scaler']
 
-        X_training_raw = pd.read_csv(Path(self.project.selected_model) / 'training_data.csv')
+        X_training_raw = pd.read_csv(model_folder / 'training_data.csv')
         X_training = X_training_raw.drop('unit_id', axis=1).values
-        Y_training_raw = pd.read_csv(Path(self.project.selected_model) / 'labels.csv')
+        Y_training_raw = pd.read_csv(model_folder / 'labels.csv')
         Y_training = Y_training_raw.drop('unit_index', axis=1).values
 
         y_training = Y_training.ravel()
@@ -652,10 +1414,11 @@ class MainWindow(QtWidgets.QWidget):
 
         # --- preprocess train/test consistently using the already-fitted preprocessing
         X_train_proc = model_scaler.transform(
-            model_imputer.transform(pd.DataFrame(X_train_raw, columns=model_metric_names))
+            # as 32-bit floats, like SpikeInterface when it trains and applies models
+            model_imputer.transform(as_model_input(pd.DataFrame(X_train_raw, columns=model_metric_names)))
         )
         X_test_proc = model_scaler.transform(
-            model_imputer.transform(pd.DataFrame(X_test_raw, columns=model_metric_names))
+            model_imputer.transform(as_model_input(pd.DataFrame(X_test_raw, columns=model_metric_names)))
         )
 
         learner = ActiveLearner(
@@ -664,68 +1427,152 @@ class MainWindow(QtWidgets.QWidget):
             X_training=X_train_proc,
             y_training=y_train
         )
+        # the classifier is now trained on the training split only: its score on the held-out units is the
+        # baseline, which the classifier trained with the relabelled units too is compared with (the parent model
+        # itself may have been trained on the held-out units, so it would not be a fair baseline)
+        held_out_before = balanced_accuracy_score(y_test, learner.estimator.predict(X_test_proc))
 
         X_new = []
         X_just_values = []
         y_new = []
+        units_added = {}
+        # what the retraining log records about each added unit, and the relabelled units which were not added
+        added_unit_details = []
+        num_same_as_original = 0
+        num_not_in_classes = 0
 
-        for analyzer_name, analyzer_dict in self.project.analyzers.items():
+        # units already learned in an earlier round are not added again
+        parent_trained_on, _ = read_trained_on(model_folder)
+        num_already_learned = 0
+        num_relabelled = 0
+        analyzers_missing_metrics = {}
 
-            folder_name = self.project.folder_name
-            save_path = Path(folder_name / "analyzers" / f"analyzer_{analyzer_name}")
+        # relabelled units from the training analyzers and from the new analyzers the models were applied to.
+        # Your label is your label whichever model picked the unit, so the relabels made with any model selection
+        # are used (when a unit was relabelled several times, the most recent label)
+        for target in self.relabel_targets():
 
-            relabelled_units_path = save_path / f"relabelled_units_{self.project.selected_model.name}.csv"
-            if relabelled_units_path.is_file():
-                relabelled_units = pd.read_csv(save_path / f"relabelled_units_{self.project.selected_model.name}.csv")
-            else:
-                relabelled_units = pd.DataFrame(columns=['quality', 'unit_id'])
-            all_metrics_path = save_path / "all_metrics.csv"
-            if all_metrics_path.is_file():
+            save_path = Path(target['save_folder'])
+            file_prefix = target['file_prefix']
+
+            latest_relabels = {}
+            relabel_files = sorted(save_path.glob(f"{file_prefix}relabelled_units_*.csv"), key=lambda path: path.stat().st_mtime)
+            for relabel_file in relabel_files:
+                picked_with = relabel_file.stem[len(f"{file_prefix}relabelled_units_"):]
+                table = pd.read_csv(relabel_file)
+                for quality, unit_id in zip(table['quality'], table['unit_id'].astype(str)):
+                    if isinstance(quality, str):
+                        latest_relabels[unit_id] = (quality, picked_with)
+            if len(latest_relabels) == 0:
+                continue
+            num_relabelled += len(latest_relabels)
+            relabelled_units = pd.DataFrame(
+                [(quality, unit_id, picked_with) for unit_id, (quality, picked_with) in latest_relabels.items()],
+                columns=['quality', 'unit_id', 'picked_with'],
+            )
+
+            all_metrics_path = save_path / f"{file_prefix}all_metrics.csv"
+            all_metrics = pd.read_csv(all_metrics_path) if all_metrics_path.is_file() else None
+            relabelled_unit_ids = set(relabelled_units['unit_id'].astype(str))
+            # recompute the metrics if there is no file yet, or if it misses relabelled units (older versions
+            # of the Relabel window saved the metrics of the units shown only)
+            if all_metrics is None or not relabelled_unit_ids.issubset(set(all_metrics['unit_id'].astype(str))):
+                analyzer = load_sorting_analyzer(target['path'], load_extensions=False)
+                all_metrics = compute_all_metrics(analyzer)
+                all_metrics.to_csv(all_metrics_path, index_label="unit_id")
                 all_metrics = pd.read_csv(all_metrics_path)
-            else:
-                analyzer = load_sorting_analyzer(analyzer_dict['path'], load_extensions=False)
-                analyzer.load_extension("quality_metrics")
-                analyzer.load_extension("template_metrics")
-                if analyzer.has_extension('template_metrics'):
-                    tms = analyzer.get_extension("template_metrics").get_data()
-                else:
-                    tms = pd.DataFrame()
-                
-                if analyzer.has_extension('quality_metrics'):
-                    qms = analyzer.get_extension("quality_metrics").get_data()
-                else:
-                    qms = pd.DataFrame()
-                
-                all_metrics = pd.concat([qms, tms], axis=1)
-                all_metrics['unit_id'] = all_metrics.index
-            labels_path = save_path / "labels.csv"
+            # the original labels: curated or imported (also for new analyzers); without them every relabelled unit is new
+            labels_path = save_path / f"{file_prefix}labels.csv"
             if labels_path.is_file():
-                original_labels = pd.read_csv(save_path / "labels.csv")
+                original_labels = pd.read_csv(labels_path)
             else:
                 original_labels = pd.DataFrame(columns=['quality', 'unit_id'])
 
+            # with the metric names of the SpikeInterface version the model was trained with
+            all_metrics = metrics_for_model(all_metrics, model_info)
+            missing_metrics = [metric for metric in model_metric_names if metric not in all_metrics.columns]
+            if len(missing_metrics) > 0:
+                print(f"Skipping relabelled units of {target['path']}: it is missing metrics used by {model_folder.name}: {missing_metrics}")
+                analyzers_missing_metrics[target['path']] = missing_metrics
+                continue
             all_metrics = all_metrics[np.concat([model_metric_names, ['unit_id']])]
+            # unit ids are matched as strings, since csv files are read back with pandas' inferred dtype
+            all_metrics_unit_ids = all_metrics['unit_id'].astype(str).values
+            original_qualities = dict(zip(original_labels['unit_id'].astype(str), original_labels['quality']))
+
+            def model_labels_from(key):
+                """This model's labels in the predictions saved for a model selection, as {unit id: label}."""
+                predictions_path = save_path / predictions_file_name(file_prefix, key)
+                if not predictions_path.is_file():
+                    return {}
+                predictions = pd.read_csv(predictions_path, index_col="unit_id")
+                label_columns = [column for column in predictions.columns if column.endswith(f"{model_folder.name}_model_label")]
+                if len(label_columns) == 0:
+                    return {}
+                return dict(zip(predictions.index.astype(str), predictions[label_columns[0]].fillna("").astype(str)))
+
+            # what this model said about each unit: from the predictions of the selection the unit was picked
+            # with, or else from this model's own saved predictions
+            own_model_labels = model_labels_from(model_folder.name)
+            picked_with_labels = {key: model_labels_from(key) for key in relabelled_units['picked_with'].unique()}
+            already_learned = parent_trained_on.get(normalise_path(target['path']), set())
 
             y_new_with_unit_ids = []
             for _, relabelled_unit in relabelled_units.iterrows():
-                if relabelled_unit['unit_id'] in original_labels['unit_id'].values:
-                    if relabelled_unit['quality'] != original_labels.query(f"unit_id == {relabelled_unit['unit_id']}")['quality'].values[0]:
-                        # New label contradicts the original label
-                        y_new_with_unit_ids.append([invert_label_conversion[_map_quality(relabelled_unit['quality'])], relabelled_unit['unit_id']])
-                else:
-                    # A newly labelled unit
-                    y_new_with_unit_ids.append([invert_label_conversion[_map_quality(relabelled_unit['quality'])], relabelled_unit['unit_id']])
-
+                new_class = _map_quality(relabelled_unit['quality'])
+                if new_class is None:
+                    num_not_in_classes += 1
+                    continue
+                unit_id = str(relabelled_unit['unit_id'])
+                if unit_id in already_learned and unit_id not in original_qualities:
+                    # added in an earlier retraining round
+                    num_already_learned += 1
+                    continue
+                # compare in the model's classes, e.g. MUA -> good is no change for a noise vs neural model
+                if unit_id in original_qualities and new_class == _map_quality(original_qualities[unit_id]):
+                    num_same_as_original += 1
+                    continue
+                # a newly labelled unit, or a new label which contradicts the original label
+                y_new_with_unit_ids.append([invert_label_conversion[new_class], unit_id])
+                added_unit_details.append(dict(
+                    analyzer=str(target['path']),
+                    group="training" if target['analyzer_index'] is not None else "new",
+                    unit_id=unit_id,
+                    original_label=original_qualities.get(unit_id, ""),
+                    model_label=picked_with_labels[relabelled_unit['picked_with']].get(unit_id, own_model_labels.get(unit_id, "")),
+                    your_label=relabelled_unit['quality'],
+                    taught_as=new_class,
+                ))
 
             for quality, unit_id in y_new_with_unit_ids:
-                X_new.append(all_metrics.query(f'unit_id == {unit_id}').values[0])
-                X_just_values.append(all_metrics.query(f'unit_id == {unit_id}').drop('unit_id', axis=1).values[0])
+                unit_metrics = all_metrics[all_metrics_unit_ids == unit_id]
+                X_new.append(unit_metrics.values[0])
+                X_just_values.append(unit_metrics.drop('unit_id', axis=1).values[0])
                 y_new.append(quality)
+                units_added.setdefault(target['path'], []).append(unit_id)
+
+        if len(y_new) == 0:
+            # say why, so the user knows what to do
+            reasons = []
+            if num_relabelled == 0:
+                reasons.append("you have not relabelled any units yet")
+            for path, missing_metrics in analyzers_missing_metrics.items():
+                reasons.append(f"{Path(str(path)).parent.name}/{Path(str(path)).name} is missing metrics the model uses: "
+                               f"{', '.join(missing_metrics)}")
+            if num_not_in_classes > 0:
+                reasons.append(f"{num_not_in_classes} units have a label this model doesn't predict "
+                               f"(its classes are {', '.join(model_classes)})")
+            if num_same_as_original > 0:
+                reasons.append(f"{num_same_as_original} units got the same label as before, in this model's classes")
+            if num_already_learned > 0:
+                reasons.append(f"{num_already_learned} units were already added in an earlier retraining round")
+            print(f"No relabelled units change the training data of {model_folder.name}, so it was not retrained: {reasons}")
+            return dict(retrained=False, reasons=reasons, no_relabels=num_relabelled == 0)
 
         # X_imputed = model_imputer.fit_transform(pd.DataFrame(X_just_values,columns=model_metric_names))
         # learner.teach(X_imputed, y_new)
         X_new_proc = model_scaler.transform(
-            model_imputer.transform(pd.DataFrame(X_just_values, columns=model_metric_names))
+            model_imputer.transform(as_model_input(pd.DataFrame(X_just_values, columns=model_metric_names)))
         )
         learner.teach(X_new_proc, y_new)
 
@@ -750,16 +1597,37 @@ class MainWindow(QtWidgets.QWidget):
         all_labels.to_csv(retrained_model_folder / 'labels.csv', index=False)
         all_training_data.to_csv(retrained_model_folder / 'training_data.csv', index=False)
 
-        shutil.copyfile(self.project.selected_model / 'model_info.json', retrained_model_folder / 'model_info.json')
+        shutil.copyfile(model_folder / 'model_info.json', retrained_model_folder / 'model_info.json')
+
+        # the retrained model learned from what its parent learned from, plus the relabelled units
+        parent_units, parent_status = read_trained_on(model_folder)
+        trained_on = {path: set(unit_ids) for path, unit_ids in parent_units.items()}
+        for path, unit_ids in units_added.items():
+            trained_on.setdefault(normalise_path(path), set()).update(unit_ids)
+        write_trained_on(retrained_model_folder, trained_on, complete=(parent_status != "unknown"))
 
         self.project.model_paths = self.project.model_paths + [(retrained_model_folder, "local")]
-        
-        self.make_model_list()
-        
+
         print(f"Successfully retrained model! Saved at {retrained_model_folder}.")
-        # print(f"balanced accuracy = {learner.score(all_training_data.drop('unit_id', axis=1).values, all_labels['0'].values)}")
         y_pred_test = learner.estimator.predict(X_test_proc)
-        print(f"balanced accuracy (held-out test) = {balanced_accuracy_score(y_test, y_pred_test):.4f}")
+        held_out_balanced_accuracy = balanced_accuracy_score(y_test, y_pred_test)
+        print(f"balanced accuracy (held-out test) = {held_out_before:.4f} without the relabelled units, "
+              f"{held_out_balanced_accuracy:.4f} with them")
+
+        # what this round did, for the Retraining history in section 4
+        write_retraining_log(retrained_model_folder, dict(
+            parent=model_folder.name,
+            model=retrained_model_name,
+            selection=selection_key,
+            num_training_units_before=int(len(y_training)),
+            num_same_as_original=num_same_as_original,
+            num_not_in_classes=num_not_in_classes,
+            num_already_learned=num_already_learned,
+            held_out=dict(num_units=int(len(y_test)), before=float(held_out_before), after=float(held_out_balanced_accuracy)),
+        ), added_unit_details)
+
+        return dict(name=retrained_model_name, num_units_added=len(y_new), held_out_balanced_accuracy=held_out_balanced_accuracy,
+                    held_out_before=held_out_before, num_held_out=int(len(y_test)), recordings=units_added)
 
     def show_curation_window(self, selected_directory, analyzer_index):
 
@@ -767,12 +1635,109 @@ class MainWindow(QtWidgets.QWidget):
 
         print(f"\nLaunching SpikeInterface-GUI to curate analyzer at {analyzer_path}...")
         print("Label units as noise, good and MUA by pressing 'n', 'g' and 'm' on your keyboard.")
+        print("Your labels are shown in the 'quality' column.")
+        print("To change a label, select the unit and press another key: the new label replaces the old one.")
+        print("Your labels are saved automatically when you close the SpikeInterface-GUI.")
 
         curate_filepath = Path(__file__).absolute().parent / "launch_sigui.py"
-        subprocess.run([sys.executable, curate_filepath, analyzer_path, f'{self.output_folder}', f'{analyzer_index}'])
-        print("SpikeInterface-GUI closed, resuming main app.\n")
+        self.run_sigui(
+            [sys.executable, curate_filepath, analyzer_path, f'{self.output_folder}', f'{analyzer_index}'],
+            title=f"Opening {Path(str(analyzer_path)).name} to do curation",
+            steps=CURATE_STEPS,
+            timing_key=f"curate:{analyzer_path}",
+            on_closed=self.make_curation_button_list,
+        )
 
-        self.make_curation_button_list()
+    def run_sigui(self, command, title, steps, timing_key, on_closed):
+        """
+        Opens the SpikeInterface-GUI in its own process, without blocking this window. While it opens,
+        a dialog shows the steps it goes through and the time it takes (and how long it took last time
+        for this recording); once it is open, a banner says so. `on_closed` is called when it is closed.
+        """
+        if self.sigui_process is not None:
+            print("The SpikeInterface-GUI is already open. Close it before opening another one.")
+            return
+
+        process = QProcess(self)
+        process.setProcessChannelMode(QProcess.MergedChannels)
+        environment = QProcessEnvironment.systemEnvironment()
+        # print the SpikeInterface-GUI's messages as they come, not when it closes
+        environment.insert("PYTHONUNBUFFERED", "1")
+        environment.insert("PYTHONIOENCODING", "utf-8")
+        process.setProcessEnvironment(environment)
+        process.readyReadStandardOutput.connect(self.on_sigui_output)
+        process.finished.connect(lambda exit_code, exit_status: self.on_sigui_finished(exit_code, on_closed))
+        self.sigui_process = process
+        self.sigui_window_shown = False
+        self.sigui_cancelled = False
+        self.sigui_output_buffer = ""
+        self.sigui_last_message = "No message was printed."
+        self.sigui_timing_key = timing_key
+
+        previous_seconds = self.project.config.get("sigui_opening_seconds", {}).get(timing_key)
+        self.sigui_opening_dialog = OpeningDialog(title, steps, previous_seconds, parent=self)
+        self.sigui_opening_dialog.cancelled.connect(self.cancel_sigui)
+        self.sigui_opening_dialog.show()
+
+        self.content_widget.setEnabled(False)
+
+        process.start(str(command[0]), [str(argument) for argument in command[1:]])
+
+    def on_sigui_output(self):
+        output = bytes(self.sigui_process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        # output can arrive in pieces, so only complete lines are handled
+        self.sigui_output_buffer += output.replace("\r\n", "\n")
+        *lines, self.sigui_output_buffer = self.sigui_output_buffer.split("\n")
+        for line in lines:
+            if line.startswith(SIGUI_STEP_MARKER):
+                self.sigui_opening_dialog.set_step(line[len(SIGUI_STEP_MARKER):].strip())
+            elif line.strip() == SIGUI_SHOWN_MARKER:
+                self.on_sigui_shown()
+            else:
+                sys.stdout.write(line + "\n")
+                if line.strip() != "":
+                    self.sigui_last_message = line.strip()
+        sys.stdout.flush()
+
+    def on_sigui_shown(self):
+        self.sigui_window_shown = True
+
+        # remember how long it took, to show next time
+        opening_seconds = self.project.config.setdefault("sigui_opening_seconds", {})
+        opening_seconds[self.sigui_timing_key] = round(self.sigui_opening_dialog.elapsed_seconds(), 1)
+        self.project.save_config()
+
+        self.sigui_opening_dialog.done_opening()
+        self.sigui_banner_text.setText(
+            "<b>The SpikeInterface-GUI is open.</b> Label units with the <b>n</b>, <b>g</b> and <b>m</b> keys "
+            "(noise, good, MUA) in the 'quality' column. To change a label, press another key: the new label "
+            "replaces the old one.<br><b>Your labels are saved automatically when you close it</b>, and UnitRefine "
+            "is available again."
+        )
+        self.sigui_banner.setVisible(True)
+
+    def on_sigui_finished(self, exit_code, on_closed):
+        if not self.sigui_window_shown:
+            # still loading: cancelled, or failed before the window opened
+            self.sigui_opening_dialog.done_opening()
+            if exit_code != 0 and not self.sigui_cancelled:
+                print("The SpikeInterface-GUI did not open. See the messages above for the reason.")
+                QtWidgets.QMessageBox.warning(
+                    self, "SpikeInterface-GUI did not open",
+                    f"The SpikeInterface-GUI could not be opened:\n\n{self.sigui_last_message}\n\nThe terminal shows all the messages.",
+                )
+        self.sigui_process = None
+        self.sigui_banner.setVisible(False)
+        self.content_widget.setEnabled(True)
+        if self.sigui_window_shown:
+            print("SpikeInterface-GUI closed, resuming main app.\n")
+        on_closed()
+
+    def cancel_sigui(self):
+        if self.sigui_process is not None:
+            print("Cancelled opening the SpikeInterface-GUI.")
+            self.sigui_cancelled = True
+            self.sigui_process.kill()
 
     def show_train_window(self):
 
@@ -796,94 +1761,138 @@ class MainWindow(QtWidgets.QWidget):
         return False
 
 
+    def model_lineage(self, model_name):
+        """A model and its retrained versions in the project, in order: the original, _retrained_01, _02, ..."""
+        base_name, _ = _base_and_idx(model_name)
+        versions = []
+        for model_folder, _ in self.project.model_paths:
+            name = Path(model_folder).name
+            name_base, index = _base_and_idx(name)
+            if name_base != base_name:
+                continue
+            # "base_retrained" without a number counts as the first retraining round
+            round_number = 0 if name == base_name else (index if index is not None else 1)
+            versions.append((round_number, Path(model_folder)))
+        return base_name, [model_folder for _, model_folder in sorted(versions, key=lambda version: version[0])]
+
+    def show_manage_models_window(self):
+
+        if len(self.project.model_paths) == 0:
+            print("No models trained or loaded into project.")
+            return
+
+        manage_window = ManageModelsWindow(self.project, parent=self)
+        manage_window.models_changed.connect(self.make_model_list)
+        manage_window.exec()
+
     def make_model_list(self):
-        self.combo_box = QtWidgets.QComboBox(self)
-        self.combo_box.currentIndexChanged.connect(self.update_retrained_name)
-        model_folders = [Path(model[0]) for model in self.project.model_paths]
-        model_names = [model_folder.name for model_folder in model_folders]
-        self.combo_box.addItems(model_names)       
-        self.trainLayout.addWidget(self.combo_box,3,0,1,4)
-        new_model_index = self.combo_box.count() - 1
-        self.combo_box.setCurrentIndex(new_model_index)
-        self.update_retrained_name()
+        self.model_selector.set_models(self.project.model_paths)
 
-    def update_retrained_name(self):
+    def models_to_retrain(self):
+        """The names of the models chosen in 'Model to retrain' (one of the models chosen in 3.2, or all)."""
+        names = self.retrain_choice.currentData() if self.retrain_choice.count() > 0 else None
+        return list(names) if names is not None else self.model_selector.selected_model_names()
 
-        current_model_name = str(self.combo_box.currentText())
-    
-        # Get names of all models you already know about
+    def update_retrain_choice(self):
+        """Fills 'Model to retrain' with the models chosen in 3.2; one model is retrained at a time."""
+        names = self.model_selector.selected_model_names()
+        previous = self.retrain_choice.currentData()
+        self.retrain_choice.blockSignals(True)
+        self.retrain_choice.clear()
+        if self.model_selector.mode() == "cascade" and len(names) == 2:
+            self.retrain_choice.addItem(f"Layer 1: {names[0]}", [names[0]])
+            self.retrain_choice.addItem(f"Layer 2: {names[1]}", [names[1]])
+        else:
+            for name in names:
+                self.retrain_choice.addItem(name, [name])
+        for index in range(self.retrain_choice.count()):
+            if self.retrain_choice.itemData(index) == previous:
+                self.retrain_choice.setCurrentIndex(index)
+        self.retrain_choice.setEnabled(self.retrain_choice.count() > 1)
+        self.retrain_choice.blockSignals(False)
+        self.on_retrain_choice_changed()
+
+    def on_retrain_choice_changed(self):
+        retrained_names = self.retrained_names()
+        # a single model can be given any name; several models are named automatically
+        if len(retrained_names) == 1:
+            self.retrainedModelNameForm.setText(retrained_names[0])
+            self.retrainedModelNameForm.setReadOnly(False)
+        else:
+            self.retrainedModelNameForm.setText(", ".join(retrained_names))
+            self.retrainedModelNameForm.setReadOnly(True)
+
+    def retrained_names(self):
+        """The next free retrained name (…_retrained_01, _02, …) for each model to retrain."""
+
         existing_names = [str(model_path.name) for (model_path, _) in self.project.model_paths]
-    
-        # Strip any existing retrained suffix from the currently selected name
-        base_name, _ = _base_and_idx(current_model_name)
-    
-        # Compute the next retrained name (01, 02, ...)
-        retrained_name = _next_retrained_name(base_name, existing_names, width=2)
+        retrained_names = []
+        for model_name in self.models_to_retrain():
+            base_name, _ = _base_and_idx(model_name)
+            retrained_name = _next_retrained_name(base_name, existing_names + retrained_names, width=2)
+            retrained_names.append(retrained_name)
+        return retrained_names
 
-        if self.retrainedModelNameForm is not None:
-            self.retrainedModelNameForm.setText(retrained_name)
-        current_model_name = self.combo_box.currentText()
-        if len(self.project.model_paths) > 0:
-            self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
+    def on_model_selection_changed(self):
+
+        self.update_retrain_choice()
+
         self.make_validate_button_list()
-        try:
-            self.make_relabel_button_list()
-        except:
-            return
-
-    def show_validate_window(self, analyzer, analyzer_index, relabel=False):
-
-        analyzer_path = analyzer['path']
-        
-        current_model_name = self.combo_box.currentText()
-        if current_model_name == '':
-            print("No models trained or loaded into project! Please train or load one, then you can inspect/improve its predictions.")
-            return
-        self.project.selected_model, hfh_or_local = [model for model in self.project.model_paths if str(current_model_name) == str(model[0].name)][0]
-
-        analyzer_in_project = analyzer['analyzer_in_project']
-
-        validate_filepath = Path(__file__).absolute().parent / "launch_sigui_validate.py"
-        subprocess.run([sys.executable, validate_filepath, str(analyzer_path), str(self.output_folder), str(analyzer_in_project), str(analyzer_index), self.project.selected_model, current_model_name, hfh_or_local, str(relabel), str(self.percentage_float)])
-        print("SpikeInterface-GUI closed, resuming main app.")
         self.make_relabel_button_list()
 
+    def show_validate_window(self, analyzer, analyzer_index, relabel=False, *, save_folder=None, file_prefix=""):
+
+        analyzer_path = analyzer['path']
+        if save_folder is None:
+            save_folder = Path(self.output_folder) / analyzer['analyzer_in_project']
+
+        problem = self.model_selector.describe_problem()
+        if problem is not None:
+            print(problem)
+            return
+
+        mode = self.model_selector.mode()
+        model_folders = [str(model_folder) for model_folder, _ in self.model_selector.selected_models()]
+        selection_key = self.model_selector.selection_key()
+
+        validate_filepath = Path(__file__).absolute().parent / "launch_sigui_validate.py"
+        command = [
+            sys.executable, validate_filepath, str(analyzer_path),
+            "--save_folder", str(save_folder), "--file_prefix", file_prefix,
+            "--mode", mode, "--model_folders", *model_folders, "--selection_key", selection_key,
+        ]
+        # curated or imported labels fill the quality column: of a project analyzer, or imported for a new one
+        human_labels_path = Path(save_folder) / f"{file_prefix}labels.csv"
+        if human_labels_path.is_file():
+            command += ["--human_labels", str(human_labels_path)]
+        if relabel:
+            units_file = units_to_relabel_path(dict(save_folder=save_folder, file_prefix=file_prefix), selection_key)
+            if not units_file.is_file():
+                print("Click 'Find least confident units' first, to choose the units to relabel.")
+                return
+            command += ["--relabel", "--units_file", str(units_file)]
+        purpose = "to relabel the least confident units" if relabel else "to inspect the model predictions"
+        self.run_sigui(
+            command,
+            title=f"Opening {Path(str(analyzer_path)).name} {purpose}",
+            steps=INSPECT_STEPS,
+            timing_key=f"inspect:{analyzer_path}",
+            on_closed=self.make_relabel_button_list,
+        )
+
 def main():
-        
-    parser = ArgumentParser(
-        description="UnitRefine - curate your sorting and create a machine learning model based on your curation."
-    )
-    parser.add_argument(
-        "--project_folder",
-        required=True,
-        type=str,
-    )
+    """Starts UnitRefine; see launcher.py, which shows an 'Opening UnitRefine' box while it loads."""
+    from unitrefine.launcher import main as launch
+    launch()
 
-    args = parser.parse_args()        
-    project_folder = Path(args.project_folder).resolve()
-
-    if project_folder.is_dir():
-        print("Project already exists. Loading...")
-        project = load_project(project_folder)
-    else:
-        print("Project Folder does not exist. Creating now...")
-        project = UnitRefineProject(project_folder)
-        project.save()
-
-    app = QtWidgets.QApplication(sys.argv)
-    app.setStyle(QStyleFactory.create("Fusion"))
-    app.setStyleSheet("* { color: black; }")
-    icon_file = Path(__file__).absolute().parent / 'resources' / 'logo.png'
-    if icon_file.exists():
-        app.setWindowIcon(QIcon(str(icon_file)))
-
-    custom_font = QFont()
-    custom_font.setFamily("courier new")
-    app.setFont(custom_font)
-    w = MainWindow(project)
-    w.setWindowTitle('UnitRefine')
-    w.show()
-    app.exec()
+def initial_window_size(available_geometry):
+    """
+    The window opens wide enough for the sections at their maximum width (or the whole screen width on a
+    small laptop), and as tall as the screen allows; the rest scrolls.
+    """
+    width = min(CONTENT_MAX_WIDTH + 60, available_geometry.width())
+    height = min(1100, int(available_geometry.height() * 0.9))
+    return QSize(width, height)
 
 def is_a_model(directory):
     return (Path(directory) / "best_model.skops").is_file()

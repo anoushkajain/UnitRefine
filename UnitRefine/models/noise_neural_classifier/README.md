@@ -20,9 +20,10 @@ Used to identify noise clusters automatically in SpikeInterface.
 This can be used to automatically identify noise in spike-sorted outputs. If you have a sorting_analyzer, it can be used as follows:
 
 ``` python
-    from spikeinterface.curation import auto_label_units
+    # SpikeInterface >= 0.104 (called auto_label_units in older versions)
+    from spikeinterface.curation import model_based_label_units
 
-    labels = auto_label_units(
+    labels = model_based_label_units(
         sorting_analyzer=sorting_analyzer,
         repo_id="SpikeInterface/UnitRefine_noise_neural_classifier",
         trust_model=True
