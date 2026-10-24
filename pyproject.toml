@@ -25,6 +25,8 @@ dependencies = [
 
     "pyqt5>=5.15.11",
     "s3fs>=2025.10.0",
+    # reading compressed IBL recordings (.cbin), e.g. for + Phy output
+    "mtscomp>=1.0.2",
     "pyqt5-qt5<5.15.18; sys_platform == 'win32' and platform_machine == 'AMD64'",
     "pyqt5-qt5>=5.15.0; sys_platform == 'darwin'",
     "pyqt5-qt5>=5.15.0; sys_platform == 'linux'",

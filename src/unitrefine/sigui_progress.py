@@ -32,7 +32,9 @@ class OpeningDialog(QtWidgets.QDialog):
 
     cancelled = pyqtSignal()
 
-    def __init__(self, title, steps, previous_seconds=None, parent=None):
+    def __init__(self, title, steps, previous_seconds=None, parent=None, window_title="Opening the SpikeInterface-GUI",
+                 note=None, slow_message=None):
+        """`note` (text) replaces the help about the SpikeInterface-GUI; `slow_message` is shown when it takes long."""
 
         super().__init__(parent)
 
@@ -42,7 +44,8 @@ class OpeningDialog(QtWidgets.QDialog):
         self.step_start_time = self.start_time
         self.current_step = 0
 
-        self.setWindowTitle("Opening the SpikeInterface-GUI")
+        self.slow_message = slow_message
+        self.setWindowTitle(window_title)
         # no close button: closing would not stop the SpikeInterface-GUI from opening, Cancel does
         self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
         self.setMinimumWidth(540)
@@ -77,12 +80,18 @@ class OpeningDialog(QtWidgets.QDialog):
         self.message_label.setStyleSheet("color: '#555555';")
         layout.addWidget(self.message_label)
 
-        # what to do once it is open, read while waiting
-        help_box = sigui_help_box()
-        # wrapped text gets too little height in a dialog, so reserve the height it needs at the dialog's width
-        help_box.ensurePolished()
-        help_box.setMinimumHeight(help_box.heightForWidth(self.minimumWidth() - 48) + 24)
-        layout.addWidget(help_box)
+        if note is None:
+            # what to do once it is open, read while waiting
+            help_box = sigui_help_box()
+            # wrapped text gets too little height in a dialog, so reserve the height it needs at the dialog's width
+            help_box.ensurePolished()
+            help_box.setMinimumHeight(help_box.heightForWidth(self.minimumWidth() - 48) + 24)
+            layout.addWidget(help_box)
+        else:
+            note_label = QtWidgets.QLabel(note)
+            note_label.setWordWrap(True)
+            note_label.setTextFormat(Qt.TextFormat.RichText)
+            layout.addWidget(note_label)
 
         cancel_layout = QtWidgets.QHBoxLayout()
         cancel_layout.addStretch()
@@ -127,7 +136,9 @@ class OpeningDialog(QtWidgets.QDialog):
             time_text += f"  (last time: about {self.previous_seconds:.0f} s)"
         self.time_label.setText(time_text)
 
-        if elapsed > SLOW_AFTER_SECONDS and (self.previous_seconds is None or elapsed > self.previous_seconds * 1.5):
+        if self.slow_message is not None:
+            self.message_label.setText(self.slow_message)
+        elif elapsed > SLOW_AFTER_SECONDS and (self.previous_seconds is None or elapsed > self.previous_seconds * 1.5):
             self.message_label.setText(
                 "Still working. Large recordings take longer to load, and the first time a recording is opened "
                 "some data for the views may be computed. Nothing has crashed, please don't close anything."

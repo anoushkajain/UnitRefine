@@ -49,6 +49,10 @@ from unitrefine.apply_models import find_analyzers
 from unitrefine.evaluation import read_trained_on, write_trained_on, normalise_path
 from unitrefine import figures, theme
 from unitrefine.launcher import enable_high_dpi_scaling, set_app_font
+from unitrefine.phy_import import (
+    EXPORTED_STEPS, GAIN_HINT, KILOSORT_STEPS, PHY_RESULT_MARKER, PHY_STEP_MARKER, default_output_folder, made_from_phy,
+    matches_phy_folder, phy_folder_kind, recording_file, recording_needs_gain,
+)
 from unitrefine.retraining_history import RetrainingHistoryTable, write_log as write_retraining_log
 from unitrefine.widgets import (
     BusyNotice,
@@ -251,6 +255,9 @@ def load_project(folder_name):
 
 class MainWindow(QtWidgets.QWidget):
 
+    # added to the phy_import command (e.g. --n_jobs 1 in the tests)
+    phy_import_options = []
+
     def __init__(self, project):
 
         super().__init__()
@@ -323,6 +330,9 @@ class MainWindow(QtWidgets.QWidget):
         window_layout.addWidget(scroll_area)
         self.content_widget = content_widget
         self.sigui_process = None
+        # adding a Phy folder (+ Phy output)
+        self.phy_process = None
+        self.phy_reuse = False
         self.retrainedModelNameForm = None
 
         header_layout = QtWidgets.QHBoxLayout()
@@ -374,7 +384,10 @@ class MainWindow(QtWidgets.QWidget):
             "<b>Import labels</b> you already have. Then <b>train a model</b> on them.<br>"
             "<b>Import labels</b> reads Phy (cluster_group.tsv, cluster_info.tsv), SortingView (.json), SpikeInterface "
             "curation (.json), or a .csv/.tsv with <i>unit_id</i> and <i>quality</i> columns. Labels good, MUA and "
-            "noise are used; others (e.g. unsorted) are skipped."
+            "noise are used; others (e.g. unsorted) are skipped.<br>"
+            "<b>+ Phy output</b> adds a Kilosort output folder curated in Phy: an analyzer is made from it and its "
+            "recording (a few minutes), saved next to the Phy folder, and the labels you set in Phy are imported. A Phy "
+            "folder exported from an analyzer works too: Phy's merges and splits are applied to that analyzer."
         ))
 
         add_buttons_layout = QtWidgets.QHBoxLayout()
@@ -385,9 +398,10 @@ class MainWindow(QtWidgets.QWidget):
         self.add_s3_button = QtWidgets.QPushButton("+ Analyzer from s3")
         self.add_s3_button.clicked.connect(self.add_from_s3)
         add_buttons_layout.addWidget(self.add_s3_button)
-        add_phy_button = QtWidgets.QPushButton("+ Phy output (under development)")
-        add_phy_button.setEnabled(False)
-        add_phy_button.setToolTip("Loading Phy output folders directly is under development")
+        add_phy_button = QtWidgets.QPushButton("+ Phy output")
+        add_phy_button.setToolTip("A Kilosort output folder curated in Phy, or a Phy folder exported from an analyzer. "
+                                  "An analyzer is made from it, and Phy's labels are imported.")
+        add_phy_button.clicked.connect(lambda: self.add_phy_output(for_training=True))
         add_buttons_layout.addWidget(add_phy_button)
         add_buttons_layout.addStretch()
         self.curation_section.body_layout.addLayout(add_buttons_layout)
@@ -450,9 +464,10 @@ class MainWindow(QtWidgets.QWidget):
         add_new_s3_button = QtWidgets.QPushButton("+ Analyzer from s3")
         add_new_s3_button.clicked.connect(self.add_new_analyzer_from_s3)
         new_data_layout.addWidget(add_new_s3_button)
-        add_new_phy_button = QtWidgets.QPushButton("+ Phy output (under development)")
-        add_new_phy_button.setEnabled(False)
-        add_new_phy_button.setToolTip("Loading Phy output folders directly is under development")
+        add_new_phy_button = QtWidgets.QPushButton("+ Phy output")
+        add_new_phy_button.setToolTip("A Kilosort output folder curated in Phy, or a Phy folder exported from an analyzer. "
+                                      "An analyzer is made from it, and Phy's labels are imported to compare the models with.")
+        add_new_phy_button.clicked.connect(lambda: self.add_phy_output(for_training=False))
         new_data_layout.addWidget(add_new_phy_button)
         new_data_layout.addStretch()
         self.apply_section.body_layout.addLayout(new_data_layout)
@@ -938,7 +953,7 @@ class MainWindow(QtWidgets.QWidget):
         clear_layout(self.analyzer_rows_layout)
 
         if len(self.project.analyzers) == 0:
-            self.analyzer_rows_layout.addWidget(list_message("No analyzers yet: add a Sorting Analyzer folder to start."))
+            self.analyzer_rows_layout.addWidget(list_message("No analyzers yet: add a Sorting Analyzer folder or a Phy output to start."))
 
         for row_index, (analyzer_index, analyzer) in enumerate(self.project.analyzers.items()):
 
@@ -1004,6 +1019,10 @@ class MainWindow(QtWidgets.QWidget):
         label_file = self.ask_label_file()
         if label_file == "":
             return
+        self.import_label_file(analyzer_index, label_file)
+
+    def import_label_file(self, analyzer_index, label_file):
+        """Imports the labels in `label_file` for an analyzer in the project. Returns True if it worked."""
 
         analyzer_dict = self.project.analyzers[analyzer_index]
         save_folder = Path(self.project.folder_name) / Path(f"analyzers/analyzer_{analyzer_index}")
@@ -1018,13 +1037,14 @@ class MainWindow(QtWidgets.QWidget):
         except Exception as e:
             print(f"Could not import labels: {e}")
             QtWidgets.QMessageBox.warning(self, "Could not import labels", str(e))
-            return
+            return False
 
         # keep the in-memory project in sync, so a later project.save() does not overwrite the imported labels
         analyzer_dict['labels'] = labels_df
         (save_folder / "imported_labels_source.txt").write_text(str(label_file))
 
         self.make_curation_button_list()
+        return True
 
     def show_unwritable_file(self, path, message):
         if str(path) in self.reported_unwritable_files:
@@ -1306,6 +1326,10 @@ class MainWindow(QtWidgets.QWidget):
         label_file = self.ask_label_file()
         if label_file == "":
             return
+        self.import_label_file_for_new_analyzer(applied, label_file)
+
+    def import_label_file_for_new_analyzer(self, applied, label_file):
+        """Imports the labels in `label_file` for a new analyzer (section 3.3). Returns True if it worked."""
         save_folder = Path(applied['output_folder'])
         file_prefix = f"{applied['output_name']}__"
         labels_path = save_folder / f"{file_prefix}labels.csv"
@@ -1318,10 +1342,246 @@ class MainWindow(QtWidgets.QWidget):
         except Exception as e:
             print(f"Could not import labels: {e}")
             QtWidgets.QMessageBox.warning(self, "Could not import labels", str(e))
-            return
+            return False
         (save_folder / f"{file_prefix}imported_labels_source.txt").write_text(str(label_file))
 
         self.make_validate_button_list()
+        return True
+
+    # ----------------------------------------------------------------------------------------------
+    # Phy output (+ Phy output, in sections 2 and 3.3)
+    # ----------------------------------------------------------------------------------------------
+
+    def add_phy_output(self, for_training):
+        """
+        Adds a Phy folder: makes its analyzer (see phy_import.py) in a separate process, then adds it to section 2
+        (`for_training`) or applies the chosen models to it (section 3.3), with Phy's labels imported.
+        """
+        if not for_training:
+            problem = self.model_selector.describe_problem()
+            if problem is not None:
+                self.show_problem("Choose a model first", problem)
+                return
+        if self.phy_process is not None:
+            self.show_problem("Already making an analyzer", "Wait until the Phy folder being added is finished.")
+            return
+
+        phy_folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select a Phy folder (the folder with params.py)")
+        if phy_folder == "":
+            return
+        phy_folder = Path(phy_folder)
+        try:
+            kind = phy_folder_kind(phy_folder)
+        except ValueError as e:
+            self.show_problem("Not a Phy folder", str(e))
+            return
+
+        output_folder = self.phy_output_folder(phy_folder)
+        if output_folder is None:
+            return
+        labels_path = Path(self.project.folder_name) / "phy_labels" / f"{output_folder.name}_phy_labels.csv"
+        arguments = [phy_folder, "--output", output_folder, "--labels", labels_path]
+
+        if kind == "exported":
+            analyzer_path = self.analyzer_exported_to(phy_folder)
+            if analyzer_path is None:
+                return
+            arguments += ["--analyzer", analyzer_path]
+            steps, what = EXPORTED_STEPS, f"Applying the curation in {phy_folder.name} to {Path(str(analyzer_path)).name}"
+        else:
+            recording_path = recording_file(phy_folder)
+            if recording_path is None:
+                recording_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+                    self, "The recording Kilosort sorted was not found: select it (e.g. the .ap.bin file)",
+                    str(phy_folder), "Recordings (*.bin *.dat *.cbin *.raw);;All files (*)")
+                if recording_path == "":
+                    return
+                arguments += ["--recording", recording_path]
+            if recording_needs_gain(recording_path):
+                gain, accepted = QtWidgets.QInputDialog.getDouble(
+                    self, "Gain of the recording",
+                    f"{Path(recording_path).name} is a plain binary file, which doesn't say how to convert its values "
+                    f"to µV.\nGive its gain in µV per bit ({GAIN_HINT}):", 1.0, 0.0001, 1000.0, 4)
+                if not accepted:
+                    return
+                arguments += ["--gain_to_uv", gain]
+            steps, what = KILOSORT_STEPS, f"Making an analyzer from {phy_folder.name}"
+
+        self.run_phy_import(arguments, steps, what, output_folder, for_training)
+
+    def phy_output_folder(self, phy_folder):
+        """
+        Where the analyzer made from a Phy folder is saved: next to the Phy folder, or elsewhere if that can't be
+        written. If an analyzer made from this Phy folder exists, asks whether to use it or make it again.
+        Returns None if cancelled.
+        """
+        output_folder = default_output_folder(phy_folder)
+        made_from = made_from_phy(output_folder)
+        if made_from is not None and normalise_path(made_from["phy_folder"]) == normalise_path(phy_folder):
+            box = QtWidgets.QMessageBox(self)
+            box.setWindowTitle("Analyzer already made")
+            box.setText(f"An analyzer was made from {phy_folder.name} on {made_from['date'].replace('T', ' ')}:\n{output_folder}\n\n"
+                        "Make it again if you curated more in Phy since then.")
+            use_button = box.addButton("Use it", QtWidgets.QMessageBox.AcceptRole)
+            box.addButton("Make it again", QtWidgets.QMessageBox.DestructiveRole)
+            cancel_button = box.addButton(QtWidgets.QMessageBox.Cancel)
+            box.exec()
+            if box.clickedButton() is cancel_button:
+                return None
+            if box.clickedButton() is use_button:
+                self.phy_reuse = True
+            return output_folder
+        number = 2
+        while output_folder.exists():
+            # e.g. a folder of the same name, not made from this Phy folder
+            output_folder = default_output_folder(phy_folder).with_name(f"{default_output_folder(phy_folder).name}_{number}")
+            number += 1
+        if not os.access(output_folder.parent, os.W_OK):
+            chosen = QtWidgets.QFileDialog.getExistingDirectory(
+                self, f"{output_folder.parent} can't be written: choose where to save the analyzer")
+            if chosen == "":
+                return None
+            output_folder = Path(chosen) / output_folder.name
+        return output_folder
+
+    def analyzer_exported_to(self, phy_folder):
+        """The analyzer a Phy folder was exported from: found among the analyzers in the project, or asked for."""
+        candidates = [analyzer['path'] for analyzer in self.project.analyzers.values()]
+        candidates += [applied['path'] for applied in self.project.config.get("applied_analyzers", [])]
+        with BusyNotice(self, "Finding the analyzer", f"Looking for the analyzer {phy_folder.name} was exported from."):
+            for path in candidates:
+                if is_path_remote(str(path)):
+                    continue
+                try:
+                    sorting = load_sorting_analyzer(str(path), load_extensions=False).sorting
+                except Exception:
+                    continue
+                if matches_phy_folder(sorting, phy_folder):
+                    print(f"{phy_folder.name} was exported from {path}.")
+                    return path
+        folder = QtWidgets.QFileDialog.getExistingDirectory(
+            self, f"{phy_folder.name} was exported from a SpikeInterface analyzer: select that analyzer")
+        if folder == "":
+            return None
+        if not check_folder_is_analyzer(folder):
+            self.show_problem("Not a Sorting Analyzer", f"{folder} is not a Sorting Analyzer.")
+            return None
+        return folder
+
+    def run_phy_import(self, arguments, steps, what, output_folder, for_training):
+        """Runs phy_import in its own process, with a progress dialog, then adds the analyzer (see on_phy_result)."""
+        if self.phy_reuse:
+            # an analyzer made earlier from this Phy folder: only the labels are read again (fast)
+            self.phy_reuse = False
+            arguments = arguments + ["--reuse"]
+        process = QProcess(self)
+        process.setProcessChannelMode(QProcess.MergedChannels)
+        environment = QProcessEnvironment.systemEnvironment()
+        environment.insert("PYTHONUNBUFFERED", "1")
+        environment.insert("PYTHONIOENCODING", "utf-8")
+        process.setProcessEnvironment(environment)
+        self.phy_process = process
+        self.phy_output_buffer = ""
+        self.phy_result = None
+        self.phy_cancelled = False
+
+        timing_key = normalise_path(arguments[0])
+        previous_seconds = self.project.config.get("phy_import_seconds", {}).get(timing_key)
+        self.phy_dialog = OpeningDialog(
+            what, steps, previous_seconds, parent=self, window_title="Adding Phy output",
+            note=(f"Your Phy folder is not changed. The analyzer is saved in<br><i>{output_folder}</i><br>"
+                  "The terminal shows the details."),
+            slow_message=("This takes a few minutes for a long recording, most of it extracting the waveforms. "
+                          "Nothing has crashed, please don't close anything."),
+        )
+        self.phy_dialog.cancelled.connect(self.cancel_phy_import)
+        self.phy_dialog.show()
+        self.content_widget.setEnabled(False)
+
+        def finished(exit_code, exit_status):
+            self.on_phy_finished(arguments, steps, what, output_folder, for_training, timing_key)
+
+        process.readyReadStandardOutput.connect(self.on_phy_output)
+        process.finished.connect(finished)
+        print(f"\n{what}...")
+        process.start(sys.executable, ["-m", "unitrefine.phy_import", *[str(argument) for argument in arguments + self.phy_import_options]])
+
+    def on_phy_output(self):
+        output = bytes(self.phy_process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        self.phy_output_buffer += output.replace("\r\n", "\n")
+        *lines, self.phy_output_buffer = self.phy_output_buffer.split("\n")
+        for line in lines:
+            if line.startswith(PHY_STEP_MARKER):
+                self.phy_dialog.set_step(line[len(PHY_STEP_MARKER):].strip())
+            elif line.startswith(PHY_RESULT_MARKER):
+                self.phy_result = json.loads(line[len(PHY_RESULT_MARKER):])
+            else:
+                sys.stdout.write(line + "\n")
+        sys.stdout.flush()
+
+    def cancel_phy_import(self):
+        if self.phy_process is not None:
+            print("Cancelled adding the Phy folder.")
+            self.phy_cancelled = True
+            self.phy_process.kill()
+
+    def on_phy_finished(self, arguments, steps, what, output_folder, for_training, timing_key):
+        self.phy_dialog.done_opening()
+        elapsed = self.phy_dialog.elapsed_seconds()
+        self.phy_process = None
+        self.content_widget.setEnabled(True)
+        result = self.phy_result or dict(status="error", message="It stopped without a result. The terminal shows the messages.")
+        if self.phy_cancelled:
+            return
+
+        if result["status"] == "hard_merge_required":
+            if self.confirm("Merges need the raw recording", f"{result['message']}\n\nDo these merges? It can take a long time."):
+                self.run_phy_import(arguments + ["--allow_hard_merge"], steps, what, output_folder, for_training)
+            return
+        if result["status"] != "done":
+            QtWidgets.QMessageBox.warning(self, "Could not add the Phy folder", result["message"])
+            return
+
+        self.project.config.setdefault("phy_import_seconds", {})[timing_key] = round(elapsed, 1)
+        self.project.save_config()
+        self.add_phy_analyzer(result, for_training)
+
+    def add_phy_analyzer(self, result, for_training):
+        """Adds the analyzer made from a Phy folder to section 2 or 3.3, and imports Phy's labels for it."""
+        analyzer_path = result["analyzer"]
+        has_labels = result["num_labels"] > 0
+        if for_training:
+            existing = [index for index, analyzer in self.project.analyzers.items()
+                        if normalise_path(analyzer['path']) == normalise_path(analyzer_path)]
+            if len(existing) > 0:
+                analyzer_index = existing[0]
+            else:
+                self.project.add_analyzer(analyzer_path)
+                self.project.save()
+                analyzer_index = max(self.project.analyzers)
+            if has_labels:
+                self.import_label_file(analyzer_index, result["labels"])
+            self.make_curation_button_list()
+            self.make_model_list()
+            self.make_relabel_button_list()
+            where = "section 2"
+        else:
+            listed = [applied for applied in self.project.config.get("applied_analyzers", [])
+                      if normalise_path(applied['path']) == normalise_path(analyzer_path)]
+            if len(listed) == 0:
+                self.apply_to_new_analyzers([analyzer_path])
+                listed = [applied for applied in self.project.config.get("applied_analyzers", [])
+                          if normalise_path(applied['path']) == normalise_path(analyzer_path)]
+            if len(listed) == 0:
+                return
+            if has_labels:
+                self.import_label_file_for_new_analyzer(listed[0], result["labels"])
+            where = "section 3.3"
+
+        labels_text = (f"{result['num_labels']} units have a label from Phy, which were imported."
+                       if has_labels else "No units were labelled in Phy.")
+        print(f"Added {analyzer_path} to {where}. {labels_text}")
+        QtWidgets.QMessageBox.information(self, "Phy folder added", f"The analyzer is added to {where}:\n{analyzer_path}\n\n{labels_text}")
 
     def toggle_training_analyzers(self):
         self.show_training_analyzers = not self.show_training_analyzers

@@ -1,0 +1,160 @@
+PHY CURATION IMPORT - NOTES FOR INTEGRATION
+============================================
+
+UPDATE: integrated in the GUI as the "+ Phy output" buttons in sections 2 and 3.3, through
+src/unitrefine/phy_import.py (tests: tests/test_phy_import.py). A Phy folder with
+cluster_si_unit_ids.tsv is handled with apply_phy_curation below; Kilosort output curated in Phy
+(no analyzer yet) gets an analyzer made from Phy's clusters and the recording in params.py.
+Open question 4 (labels) was answered with a): Phy's labels are imported to labels.csv.
+
+Code:  src/unitrefine/phy_curation.py
+Tests: tests/test_phy_curation.py  (run: python -m pytest tests/test_phy_curation.py)
+Branch: phy-curation-import
+
+
+1. PURPOSE
+----------
+Users can export a SortingAnalyzer to phy (spikeinterface.exporters.export_to_phy),
+curate there (labels, merges, splits) and bring the result back. The result should be
+the same as if the curation had been done in SpikeInterface-GUI, so UnitRefine does not
+need to care which tool the curator used.
+
+
+2. USAGE
+--------
+    import spikeinterface.full as si
+    from unitrefine.phy_curation import apply_phy_curation, phy_to_curation, HardMergeRequired
+
+    analyzer = si.load_sorting_analyzer("path/to/analyzer")
+    curated = apply_phy_curation(analyzer, "path/to/phy")      # in-memory analyzer
+    curated.save_as(format="binary_folder", folder="path/to/analyzer_curated")
+
+    # only the curation, without applying it:
+    curation, cluster_to_unit = phy_to_curation("path/to/phy", analyzer)
+
+- phy_to_curation returns a SpikeInterface SequentialCuration plus a dict
+  {phy cluster id -> unit id after curation}.
+- apply_phy_curation applies it and then checks every curated unit spike by spike
+  against phy's spike_clusters.npy (raises RuntimeError on any mismatch).
+- Works on a SortingAnalyzer or a plain Sorting.
+
+
+3. LOGIC
+--------
+phy does not store the edit history, only the end result:
+  spike_templates.npy = original unit index of every spike (written by export_to_phy,
+                        never changed by phy)
+  spike_clusters.npy  = final cluster of every spike after curation
+The curation is reconstructed from these two files as an equivalent set of steps:
+
+  step 1 - splits:  every original unit whose spikes ended up in more than one final
+                    cluster is split (mode "indices"), one piece per final cluster
+  step 2 - merges:  every final cluster made of more than one unit/piece is a merge
+  step 3 - labels:  manual labels set on the final units
+
+This covers chained edits too (e.g. merge two units in phy, then split the merged
+cluster: reconstructed as two splits followed by two merges of the matching pieces).
+
+Unit ids:
+- units not changed in phy keep their SpikeInterface unit id
+- new units get their phy cluster id if that id is free, otherwise the next free id
+- NOTE: phy numbers clusters 0..N-1 (unit index), not by SpikeInterface unit id. If the
+  analyzer unit ids have gaps, phy cluster numbers and unit ids differ. Use the
+  cluster_to_unit dict to cross-reference.
+- string and integer unit ids are both supported
+
+Labels:
+- phy cluster_group.tsv -> label category "quality" with options good / MUA / noise
+  (same as SpikeInterface-GUI and UnitRefine). Mapping: good->good, mua->MUA,
+  noise->noise, unsorted->no label. "SUA" is also accepted and mapped to good.
+- other cluster_*.tsv files with text values become extra label categories with the
+  column name (e.g. modelLabels). If all values are good/MUA/noise/SUA they get the same
+  options as quality, otherwise the options are the values found.
+- numeric columns (metrics written by export_to_phy) and phy's own cluster_info.tsv,
+  cluster_si_unit_ids.tsv and cluster_channel_group.tsv are ignored.
+- for units created in phy (splits/merges) only the quality label is kept. phy copies
+  custom columns to new clusters, which would be wrong (e.g. model predictions).
+
+Metrics:
+- metrics are never taken from phy (phy copies them to split clusters, which is wrong).
+- the analyzer extensions (incl. quality_metrics and template_metrics) are updated by
+  SpikeInterface during the merge/split, so new units get recomputed values.
+
+Soft vs hard merges:
+- merges are done as "soft" merges by default: fast, no raw recording needed.
+- a soft merge needs the units to share enough channels (sparsity_overlap, default 0.75).
+  Units that share too few channels can only be merged as a "hard" merge, which
+  recomputes the merged units from the raw recording and can take a long time.
+- this is checked before anything is applied. If any merge needs a hard merge,
+  apply_phy_curation raises HardMergeRequired with a message listing these merges.
+  To go ahead: attach the recording (analyzer.set_temporary_recording(recording)) and
+  call again with allow_hard_merge=True. Only the failing merges are then done hard.
+- in practice this should be rare: merging units without shared channels is usually a
+  curation mistake.
+
+Workarounds for SpikeInterface 0.105 (worth reporting upstream):
+- apply_curation applies manual labels BEFORE merges, so labels on merged units would be
+  lost -> labels are applied in a separate last step on the final unit ids.
+- Split mode "labels" is broken (compares a Python list to an int, never matches)
+  -> mode "indices" is used.
+- apply_curation with a SequentialCuration passes job kwargs as `job_kwargs=...`, which
+  breaks hard merges -> the steps are applied one by one.
+
+Requirements / limitations:
+- spikeinterface >= 0.105 (pyproject.toml raised accordingly)
+- mtscomp == 1.0.2 added to pyproject.toml: needed to read compressed IBL .cbin
+  recordings (without it these analyzers load without recording)
+- single-segment sortings only (export_to_phy only exports segment 0)
+- the phy folder must come from export_to_phy of the same analyzer (checked via spike
+  counts per unit, raises ValueError otherwise)
+
+
+4. VALIDATION DONE
+------------------
+Synthetic tests (tests/test_phy_curation.py, 21 tests, all passing; each run with string
+and integer unit ids):
+- labels only (incl. mua->MUA, unsorted->no label)
+- merge
+- split into 2 and 3 pieces
+- split, then merge one piece with another unit
+- merge, then split the merged cluster (both pieces contain spikes of both units)
+- custom label columns (quality-like, free text, numeric ignored)
+- custom columns not copied to new units, quality label kept
+- hard merge: raises HardMergeRequired without confirmation, works with
+  allow_hard_merge=True
+- curated analyzer saves to a binary folder and reloads with ids, labels, extensions
+- phy folder from a different sorting raises ValueError
+- applying to a Sorting instead of an analyzer gives the same units
+
+Real data (Neuropixels session PV2555_20221019, 796 units, recordingless analyzer):
+- two rounds of manual curation in phy (several splits, merges, merge-then-split),
+  applied as soft merges in ~85 s, spike-by-spike check passed
+- quality_metrics and template_metrics recomputed for all new units (no empty rows)
+- 8 manually labeled clusters (good/mua/noise) came through with 0 mismatches
+- HardMergeRequired raised correctly (after ~3 s, before any work) for merges of units
+  without shared channels
+- NOT yet tested on real data: labels set on units created in phy (only covered by the
+  synthetic tests), and a complete hard merge (stopped because reading the recording
+  over the network was too slow)
+
+
+5. NEXT STEPS FOR GUI INTEGRATION
+---------------------------------
+1. Add a "load phy curation" option to the UnitRefine GUI (main.py): user selects the
+   analyzer and the curated phy folder.
+2. Call apply_phy_curation. Catch HardMergeRequired and show its message in a
+   confirmation dialog. On confirm: ask for / load the recording, attach it with
+   set_temporary_recording, call again with allow_hard_merge=True.
+3. Save the curated analyzer (save_as, binary_folder) and add it to the project like
+   any other analyzer.
+4. OPEN QUESTION - labels: the GUI does not read labels from the analyzer.
+   launch_sigui.py reads them from labels.csv in the project folder
+   (analyzers/analyzer_<i>/labels.csv, columns unit_id, quality). The phy labels are
+   stored as sorting properties ("quality" etc.). Options:
+   a) write the quality property to labels.csv when the curated analyzer is added
+   b) pass them to SpikeInterface-GUI as curation_data manual_labels
+   Decide which fits the GUI best.
+5. Optional: also store the curation itself (SequentialCuration as JSON) next to the
+   curated analyzer for provenance.
+6. Optional: report the three SpikeInterface issues above upstream; remove the
+   workarounds once fixed.
