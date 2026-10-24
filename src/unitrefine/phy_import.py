@@ -55,10 +55,14 @@ EXPORTED_STEPS = [
 # SpikeInterface-GUI use, as for an analyzer made in SpikeInterface
 EXTENSION_STEPS = [
     ("waveforms", ["random_spikes", "waveforms"]),
-    ("extensions", ["templates", "noise_levels", "spike_amplitudes", "unit_locations", "correlograms", "template_similarity"]),
+    ("extensions", ["templates", "noise_levels", "spike_amplitudes", "spike_locations", "unit_locations", "correlograms",
+                    "template_similarity"]),
     ("pca", ["principal_components"]),
     ("metrics", ["quality_metrics", "template_metrics"]),
 ]
+# the models on the Hugging Face Hub also use the multi-channel template metrics (e.g. spread) and the drift metrics
+# (from spike_locations)
+EXTENSION_PARAMS = {"template_metrics": dict(include_multi_channel_metrics=True)}
 
 # from the SpikeGLX documentation: µV per bit of the AP band, for the usual probes
 GAIN_HINT = "e.g. 2.34 for Neuropixels 1.0 (gain 500), 0.763 for Neuropixels 2.0"
@@ -216,7 +220,8 @@ def load_kilosort_recording(phy_folder, path=None, gain_to_uV=None):
         probe = Probe(ndim=2, si_units="um")
         probe.set_contacts(positions=positions, shapes="square", shape_params={"width": 12})
         probe.set_device_channel_indices(np.arange(len(positions)))
-        recording.set_probe(probe, in_place=True)
+        # in place (SpikeInterface 0.106 removes the in_place argument)
+        recording.set_probe(probe)
 
     if not params.get("hp_filtered", False):
         if "SpikeGLX" in steps[0]:
@@ -301,7 +306,8 @@ def analyzer_from_kilosort(phy_folder, output_folder, recording_path=None, gain_
                                           overwrite=True)
     for step, extensions in EXTENSION_STEPS:
         report_step(step)
-        analyzer.compute(extensions, **(job_kwargs or {}))
+        params = {name: EXTENSION_PARAMS[name] for name in extensions if name in EXTENSION_PARAMS}
+        analyzer.compute(extensions, extension_params=params, **(job_kwargs or {}))
     return analyzer, kilosort_phy_labels(phy_folder, sorting.unit_ids), how_read
 
 

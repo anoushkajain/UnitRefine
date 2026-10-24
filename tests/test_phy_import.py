@@ -87,6 +87,9 @@ def test_kilosort_output_curated_in_phy(exported, tmp_path):
     metrics = analyzer.get_extension("quality_metrics").get_data()
     assert metrics["snr"].notna().all() and metrics["firing_rate"].notna().all()
     assert analyzer.has_extension("template_metrics") and analyzer.has_extension("principal_components")
+    # and the drift and multi-channel template metrics, which the models on the Hugging Face Hub also use
+    columns = set(metrics.columns) | set(analyzer.get_extension("template_metrics").get_data().columns)
+    assert {"drift_ptp", "drift_std", "drift_mad", "spread", "velocity_above", "velocity_below", "exp_decay"} <= columns
 
     assert labels_of(result) == {"2": "good", "3": "MUA", "4": "noise", "8": "good"}
     made_from = json.loads((tmp_path / "kilosort4_analyzer" / MADE_FROM_PHY_FILE).read_text())
