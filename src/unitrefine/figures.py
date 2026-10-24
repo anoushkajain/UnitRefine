@@ -10,6 +10,7 @@ so they can be made outside the main thread. Kept free of Qt.
 import hashlib
 import json
 import os
+import threading
 import time
 import traceback
 from dataclasses import dataclass
@@ -243,11 +244,22 @@ def skipped_notes():
     return [f"Left out {path}: {reason}" for path, reason in evaluation.skipped_analyzers.items()]
 
 
+# a figure records what it uses in module-level state (_provenance, evaluation.skipped_analyzers), which each
+# figure starts by resetting: figures are made one at a time, also when several threads make them (e.g. the
+# figures thread of a window, and a test)
+RENDER_LOCK = threading.RLock()
+
+
 def render(spec, progress=None):
     """
     Makes and saves a figure. Returns a dict with the `status` (done, nodata or error), `notes` about
     the data (e.g. analyzers left out), a `message` for nodata and error, and the `seconds` it took.
     """
+    with RENDER_LOCK:
+        return render_unlocked(spec, progress)
+
+
+def render_unlocked(spec, progress=None):
     start_time = time.time()
     evaluation.skipped_analyzers.clear()
     reset_provenance(spec.analyzers)

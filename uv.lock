@@ -1117,6 +1117,15 @@ wheels = [
 ]
 
 [[package]]
+name = "mtscomp"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2e/ef/365e2dd214155b06d22622b3278de769d20e9e1d201538a941d62b609248/mtscomp-1.0.2.tar.gz", hash = "sha256:609c4fe5a0d00532c1452b10318a74e04add8e47c562aca216e7b40de0e4bf73", size = 15967, upload-time = "2021-05-11T11:32:31.014Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5e/12/449d679e3aef2dcadfb9b275e2809d87bfeb798c7e9a911ee4bae536e24a/mtscomp-1.0.2-py2.py3-none-any.whl", hash = "sha256:a00a6d46a6155af5bca44931ccf5045756ea8256db8fd452f5e0592b71b4db69", size = 16382, upload-time = "2021-05-11T11:32:29.676Z" },
+]
+
+[[package]]
 name = "multidict"
 version = "6.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2450,6 +2459,7 @@ version = "0.1"
 source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },
+    { name = "mtscomp" },
     { name = "numba" },
     { name = "numcodecs" },
     { name = "pandas" },
@@ -2475,6 +2485,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "huggingface-hub", specifier = ">=0.35.0" },
+    { name = "mtscomp", specifier = ">=1.0.2" },
     { name = "numba", specifier = ">=0.61.0" },
     { name = "numcodecs", specifier = "==0.15.1" },
     { name = "pandas", specifier = ">=2.2.3" },
