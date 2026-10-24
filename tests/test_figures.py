@@ -77,6 +77,28 @@ def test_every_figure_is_made_without_an_error(project):
     assert not_made == ["relabel_changes", "rounds"]
 
 
+def test_figures_made_by_two_threads_at_once_are_made_one_at_a_time(project):
+    """
+    Each window makes its figures in a thread, and a figure starts by resetting the record of the analyzers it uses:
+    two figures made at the same time (e.g. by a window's thread and a test) must not reset each other's.
+    """
+    import threading
+
+    specs = [spec for spec in all_specs(project) if spec.key in ("predicted_counts", "confidence")]
+    results = []
+
+    def make_figures():
+        for _ in range(4):
+            results.extend(figures.render(spec) for spec in specs)
+
+    threads = [threading.Thread(target=make_figures) for _ in range(3)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert [result["message"] for result in results if result["status"] == "error"] == []
+
+
 def test_figures_are_reused_until_their_data_changes(project):
     spec = [spec for spec in figures.training_specs(project, targets_of(project), [project / "models" / MODEL])
             if "confusion" in spec.key.lower() or "test" in spec.key.lower()][0]
