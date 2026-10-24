@@ -37,6 +37,7 @@ from unitrefine.predictions import (
     analyzer_output_names,
     label_units_function,
     apply_to_analyzers,
+    find_analyzers,
     find_least_confident_units,
     map_quality_to_model_class,
     metrics_for_model,
@@ -45,7 +46,7 @@ from unitrefine.predictions import (
     relabelled_units_path,
     units_to_relabel_path,
 )
-from unitrefine.apply_models import find_analyzers
+from unitrefine.models_hub import download_model
 from unitrefine.evaluation import read_trained_on, write_trained_on, normalise_path
 from unitrefine import figures, theme
 from unitrefine.launcher import enable_high_dpi_scaling, set_app_font
@@ -53,6 +54,7 @@ from unitrefine.phy_import import (
     EXPORTED_STEPS, GAIN_HINT, KILOSORT_STEPS, PHY_RESULT_MARKER, PHY_STEP_MARKER, default_output_folder, made_from_phy,
     matches_phy_folder, phy_folder_kind, recording_file, recording_needs_gain,
 )
+from unitrefine.metrics import METRICS_RESULT_MARKER, METRICS_STEP_MARKER, metrics_to_compute
 from unitrefine.retraining_history import RetrainingHistoryTable, write_log as write_retraining_log
 from unitrefine.widgets import (
     BusyNotice,
@@ -255,8 +257,9 @@ def load_project(folder_name):
 
 class MainWindow(QtWidgets.QWidget):
 
-    # added to the phy_import command (e.g. --n_jobs 1 in the tests)
+    # added to the phy_import and metrics commands (e.g. --n_jobs 1 in the tests)
     phy_import_options = []
+    metrics_options = []
 
     def __init__(self, project):
 
@@ -333,6 +336,7 @@ class MainWindow(QtWidgets.QWidget):
         # adding a Phy folder (+ Phy output)
         self.phy_process = None
         self.phy_reuse = False
+        self.metrics_process = None
         self.retrainedModelNameForm = None
 
         header_layout = QtWidgets.QHBoxLayout()
@@ -381,13 +385,15 @@ class MainWindow(QtWidgets.QWidget):
         self.curation_section = self.make_section(2, "Label your units and train a model")
         self.curation_section.body_layout.addWidget(muted_label(
             "Label the units of your recordings yourself with <b>Curate</b> (opens the SpikeInterface-GUI), or "
-            "<b>Import labels</b> you already have. Then <b>train a model</b> on them.<br>"
-            "<b>Import labels</b> reads Phy (cluster_group.tsv, cluster_info.tsv), SortingView (.json), SpikeInterface "
+            "<b>+ Import labels</b> you already have. Then <b>train a model</b> on them.<br><br>"
+            "<b>+ Import labels</b> reads Phy (cluster_group.tsv, cluster_info.tsv), SortingView (.json), SpikeInterface "
             "curation (.json), or a .csv/.tsv with <i>unit_id</i> and <i>quality</i> columns. Labels good, MUA and "
-            "noise are used; others (e.g. unsorted) are skipped.<br>"
-            "<b>+ Phy output</b> adds a Kilosort output folder curated in Phy: an analyzer is made from it and its "
-            "recording (a few minutes), saved next to the Phy folder, and the labels you set in Phy are imported. A Phy "
-            "folder exported from an analyzer works too: Phy's merges and splits are applied to that analyzer."
+            "noise are used; others (e.g. unsorted) are skipped.<br><br>"
+            "<b>+ Phy output</b> adds a Kilosort output folder curated in Phy. UnitRefine makes an analyzer from Phy's "
+            "units and the recording Kilosort sorted, which takes a few minutes, and saves the analyzer next to the Phy "
+            "folder. The labels you set in Phy are imported automatically, as <b>+ Import labels</b> would. If the Phy "
+            "folder was made from a SpikeInterface analyzer (with export_to_phy) instead of by Kilosort, no new analyzer "
+            "is made: Phy's merges and splits are applied to that analyzer."
         ))
 
         add_buttons_layout = QtWidgets.QHBoxLayout()
@@ -826,41 +832,7 @@ class MainWindow(QtWidgets.QWidget):
             print(f"Skipping {url}: a model folder called {model_directory.name} already exists in the project.")
             return False
 
-        from huggingface_hub import snapshot_download
-
-        print(f"Downloading model from HuggingFaceHub repo {url}.\n")
-
-        try:
-            snapshot_download(url, local_dir=model_directory)
-        except Exception:
-            # don't leave a half-downloaded model in the project
-            shutil.rmtree(model_directory, ignore_errors=True)
-            raise
-
-        with open(model_directory / 'hfh_path.txt', 'w') as output:
-            output.write(url)
-
-        model_info_path = model_directory / "model_info.json"
-        with open(model_info_path, 'r') as f:
-            model_info = json.load(f)
-
-        updated_model_info = {}
-        translation_dict = {
-            'MUA': ['mua'],
-            'good': ['sua', 'SUA', 'neural'],
-            'noise': [],
-        }
-        for label_index, label in model_info['label_conversion'].items():
-            new_label = label
-            for sigui_label, user_labels in translation_dict.items():
-                if label in user_labels:
-                    new_label = sigui_label
-
-            updated_model_info[label_index] = new_label
-        model_info['label_conversion'] = updated_model_info
-
-        with open(model_info_path, 'w') as f:
-            json.dump(model_info, f, indent=4)
+        download_model(url, model_directory)
 
         self.project.model_paths = self.project.model_paths + [(model_directory, "hfh")]
 
@@ -974,7 +946,7 @@ class MainWindow(QtWidgets.QWidget):
                 import_labels_button = QtWidgets.QPushButton("Imported ✓")
                 import_labels_button.setToolTip(f"Labels imported from {imported_source_path.read_text()}. Click to import again.")
             else:
-                import_labels_button = QtWidgets.QPushButton("Import labels")
+                import_labels_button = QtWidgets.QPushButton("+ Import labels")
                 import_labels_button.setToolTip(
                     "Import labels from Phy (cluster_group.tsv, cluster_info.tsv), SortingView or SpikeInterface "
                     "curation (.json), or a .csv/.tsv with unit_id and quality columns"
@@ -1176,9 +1148,9 @@ class MainWindow(QtWidgets.QWidget):
                 labels_chip = chip(f"{len(pd.read_csv(labels_path))} labelled", done=True)
                 labels_chip.setMinimumWidth(90)
             else:
-                import_labels_button = QtWidgets.QPushButton("Import labels")
+                import_labels_button = QtWidgets.QPushButton("+ Import labels")
                 import_labels_button.setToolTip("Optional: your labels for this analyzer, to compare them with the predictions")
-                # the Import labels button already says there are none
+                # the + Import labels button already says there are none
                 labels_chip = None
             import_labels_button.clicked.connect(lambda _checked=False, applied=applied: self.import_labels_for_new_analyzer(applied))
 
@@ -1195,10 +1167,8 @@ class MainWindow(QtWidgets.QWidget):
                 applied['path'], [widget for widget in [import_labels_button, labels_chip, inspect_button, remove_button] if widget is not None], first=applied_index == 0))
         self.validate_rows_layout.addWidget(new_list)
         self.validate_rows_layout.addWidget(muted_label(
-            "<b>Import labels</b> (optional) to see how a model performs on your recordings. <b>Import labels</b> reads "
-            "Phy (cluster_group.tsv, cluster_info.tsv), SortingView (.json), SpikeInterface curation (.json), or a "
-            ".csv/.tsv with <i>unit_id</i> and <i>quality</i> columns. Labels good, MUA and noise are used; others "
-            "(e.g. unsorted) are skipped."))
+            "<b>+ Import labels</b> (optional) can be used to see how a model performs on your recordings. For more "
+            "about <b>+ Import labels</b> and <b>+ Phy output</b>, see section 2."))
 
         # the training analyzers are hidden at first: predictions on training data look better than they are
         toggle_button = theme.make_flat(QtWidgets.QPushButton(
@@ -1268,10 +1238,12 @@ class MainWindow(QtWidgets.QWidget):
             return
         self.apply_to_new_analyzers([url])
 
-    def apply_to_new_analyzers(self, analyzer_paths):
+    def apply_to_new_analyzers(self, analyzer_paths, after_added=None):
         """
         Applies the chosen models to new analyzers, saving their predictions in the project's predictions folder,
-        and adds them to the list in 3.3. Analyzers already in the list are skipped.
+        and adds them to the list in 3.3. Analyzers already in the list are skipped. If some analyzers don't have
+        all the metrics the models use, offers to compute them (in their own process, see run_metrics_process) and
+        then applies the models to them. `after_added()` is called once that is done.
         """
         mode = self.model_selector.mode()
         model_folders = [model_folder for model_folder, _ in self.model_selector.selected_models()]
@@ -1312,13 +1284,118 @@ class MainWindow(QtWidgets.QWidget):
 
         failed = [result for result in results if "error" in result]
         print(f"\nApplied {self.selection_description()} to {len(results) - len(failed)}/{len(results)} analyzers. Predictions saved in {output_folder}.\n")
-        if len(failed) > 0 or len(already_listed) > 0:
-            lines = [f"• {Path(str(result['path'])).name}: {result['error']}" for result in failed]
+        # metrics can be computed for analyzers on this computer (remote ones can't be written)
+        without_metrics = [result for result in failed
+                           if "required metrics" in result['error'] and not is_path_remote(str(result['path']))]
+        compute_metrics = len(without_metrics) > 0 and self.confirm_computing_metrics(without_metrics, model_folders)
+        not_added = [result for result in failed if not (compute_metrics and result in without_metrics)]
+        if len(not_added) > 0 or len(already_listed) > 0:
+            lines = [f"• {Path(str(result['path'])).name}: {result['error']}" for result in not_added]
             lines += [f"• {Path(str(path)).name}: already in the list" for path in already_listed]
             QtWidgets.QMessageBox.warning(self, "Some analyzers were not added", "\n\n".join(lines))
 
         self.make_validate_button_list()
         self.make_relabel_button_list()
+
+        if compute_metrics:
+            self.run_metrics_process([result['path'] for result in without_metrics], model_folders, after_added)
+        elif after_added is not None:
+            after_added()
+
+    def confirm_computing_metrics(self, without_metrics, model_folders):
+        """Asks whether to compute the metrics the models use which these analyzers don't have."""
+        lines = []
+        for result in without_metrics:
+            try:
+                analyzer = load_sorting_analyzer(str(result['path']), load_extensions=False)
+                metric_names = [name for names in metrics_to_compute(analyzer, model_folders).values() for name in names]
+                lines.append(f"• {Path(str(result['path'])).name}: {', '.join(metric_names)}")
+            except Exception:
+                lines.append(f"• {Path(str(result['path'])).name}: {result['error']}")
+        which = "These analyzers don't" if len(lines) > 1 else "This analyzer doesn't"
+        return self.confirm(
+            "Compute the missing metrics?",
+            f"{which} have all the metrics the models use:\n" + "\n".join(lines)
+            + "\n\nCompute them now? They are computed with SpikeInterface's default parameters, as the models on the "
+              "Hugging Face Hub were trained with, and saved in the analyzer; the metrics it has are kept. This needs "
+              "the analyzer's recording, and can take a few minutes per analyzer."
+        )
+
+    def run_metrics_process(self, analyzer_paths, model_folders, after_added=None):
+        """
+        Computes the missing metrics (python -m unitrefine.metrics) in its own process, with a progress dialog,
+        then applies the models to the analyzers which have them now.
+        """
+        process = QProcess(self)
+        process.setProcessChannelMode(QProcess.MergedChannels)
+        environment = QProcessEnvironment.systemEnvironment()
+        environment.insert("PYTHONUNBUFFERED", "1")
+        environment.insert("PYTHONIOENCODING", "utf-8")
+        process.setProcessEnvironment(environment)
+        self.metrics_process = process
+        self.metrics_output_buffer = ""
+        self.metrics_result = None
+        self.metrics_cancelled = False
+
+        steps = [("start", "Starting Python and SpikeInterface")]
+        steps += [(f"analyzer_{index}", f"Computing the metrics of {Path(str(path)).name}") for index, path in enumerate(analyzer_paths)]
+        self.metrics_dialog = OpeningDialog(
+            f"Computing the missing metrics of {len(analyzer_paths)} analyzer{'s' if len(analyzer_paths) > 1 else ''}",
+            steps, parent=self, window_title="Computing metrics",
+            note="The metrics are saved in the analyzers, and the models are applied once they are computed. "
+                 "The terminal shows the details.",
+            slow_message=("This takes a few minutes for a long recording, most of it extracting the waveforms. "
+                          "Nothing has crashed, please don't close anything."),
+        )
+        self.metrics_dialog.cancelled.connect(self.cancel_metrics_process)
+        self.metrics_dialog.show()
+        self.content_widget.setEnabled(False)
+
+        process.readyReadStandardOutput.connect(self.on_metrics_output)
+        process.finished.connect(lambda exit_code, exit_status: self.on_metrics_finished(after_added))
+        arguments = [str(path) for path in analyzer_paths]
+        for model_folder in model_folders:
+            arguments += ["--model", str(model_folder)]
+        print(f"\nComputing the missing metrics of {len(analyzer_paths)} analyzers...")
+        process.start(sys.executable, ["-m", "unitrefine.metrics", *arguments, *self.metrics_options])
+
+    def on_metrics_output(self):
+        output = bytes(self.metrics_process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        self.metrics_output_buffer += output.replace("\r\n", "\n")
+        *lines, self.metrics_output_buffer = self.metrics_output_buffer.split("\n")
+        for line in lines:
+            if line.startswith(METRICS_STEP_MARKER):
+                self.metrics_dialog.set_step(line[len(METRICS_STEP_MARKER):].strip())
+            elif line.startswith(METRICS_RESULT_MARKER):
+                self.metrics_result = json.loads(line[len(METRICS_RESULT_MARKER):])
+            else:
+                sys.stdout.write(line + "\n")
+        sys.stdout.flush()
+
+    def cancel_metrics_process(self):
+        if self.metrics_process is not None:
+            print("Cancelled computing the metrics.")
+            self.metrics_cancelled = True
+            self.metrics_process.kill()
+
+    def on_metrics_finished(self, after_added):
+        self.metrics_dialog.done_opening()
+        self.metrics_process = None
+        self.content_widget.setEnabled(True)
+        if self.metrics_cancelled:
+            return
+        if self.metrics_result is None:
+            QtWidgets.QMessageBox.warning(self, "Could not compute the metrics",
+                                          "It stopped without a result. The terminal shows the messages.")
+            return
+
+        failed = [result for result in self.metrics_result if "error" in result]
+        if len(failed) > 0:
+            QtWidgets.QMessageBox.warning(self, "Could not compute the metrics", "\n\n".join(
+                f"• {Path(result['path']).name}: {result['error']}" for result in failed))
+        computed = [result['path'] for result in self.metrics_result if "error" not in result]
+        if len(computed) > 0:
+            self.apply_to_new_analyzers(computed, after_added)
 
     def import_labels_for_new_analyzer(self, applied):
         """Labels of a new analyzer, which the models are compared with (they are never trained on them)."""
@@ -1566,18 +1643,28 @@ class MainWindow(QtWidgets.QWidget):
             self.make_relabel_button_list()
             where = "section 2"
         else:
-            listed = [applied for applied in self.project.config.get("applied_analyzers", [])
-                      if normalise_path(applied['path']) == normalise_path(analyzer_path)]
-            if len(listed) == 0:
-                self.apply_to_new_analyzers([analyzer_path])
-                listed = [applied for applied in self.project.config.get("applied_analyzers", [])
-                          if normalise_path(applied['path']) == normalise_path(analyzer_path)]
-            if len(listed) == 0:
-                return
-            if has_labels:
-                self.import_label_file_for_new_analyzer(listed[0], result["labels"])
-            where = "section 3.3"
+            def listed():
+                return [applied for applied in self.project.config.get("applied_analyzers", [])
+                        if normalise_path(applied['path']) == normalise_path(analyzer_path)]
 
+            def after_added():
+                if len(listed()) == 0:
+                    return
+                if has_labels:
+                    self.import_label_file_for_new_analyzer(listed()[0], result["labels"])
+                self.report_phy_analyzer_added(result, "section 3.3")
+
+            if len(listed()) == 0:
+                # the models may need metrics the analyzer doesn't have: they are computed first (if the user agrees)
+                self.apply_to_new_analyzers([analyzer_path], after_added)
+            else:
+                after_added()
+            return
+        self.report_phy_analyzer_added(result, where)
+
+    def report_phy_analyzer_added(self, result, where):
+        analyzer_path = result["analyzer"]
+        has_labels = result["num_labels"] > 0
         labels_text = (f"{result['num_labels']} units have a label from Phy, which were imported."
                        if has_labels else "No units were labelled in Phy.")
         print(f"Added {analyzer_path} to {where}. {labels_text}")

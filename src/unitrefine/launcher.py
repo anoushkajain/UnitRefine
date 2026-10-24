@@ -6,12 +6,20 @@ saved figures. The window is only shown once it is complete, so it doesn't flick
 Only PyQt5 is imported at the top of this file, so the box can appear before the slow imports.
 """
 
+import importlib.util
 import sys
 import time
 from argparse import ArgumentParser
 from pathlib import Path
 
-import PyQt5.QtWidgets as QtWidgets
+try:
+    import PyQt5.QtWidgets as QtWidgets
+    if importlib.util.find_spec("spikeinterface_gui") is None:
+        raise ImportError("No module named 'spikeinterface_gui'")
+except ImportError as error:
+    # installed without the GUI, e.g. on a computing cluster
+    sys.exit(f"The UnitRefine GUI is not installed ({error}). Install it with: pip install \"unitrefine[gui]\" "
+             f"(or `uv sync` in the repository). Without the GUI, models can be applied with unitrefine-apply.")
 from PyQt5.QtCore import QCoreApplication, QEvent, Qt
 from PyQt5.QtGui import QFontDatabase, QIcon, QPixmap
 from PyQt5.QtWidgets import QStyleFactory

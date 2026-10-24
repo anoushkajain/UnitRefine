@@ -1388,7 +1388,7 @@ def make_rounds(targets, lineages):
                 ax.annotate(f"{accuracy:.2f}", (x, accuracy), textcoords="offset points", xytext=(0, 9), ha="center", fontsize=8)
         if num_units == 0:
             notes.append(f"{base_name}: no labels are left that none of its versions were trained on, so the versions "
-                         "can't be compared fairly. Import labels for a new analyzer (3.3) to compare them.")
+                         "can't be compared fairly. Use + Import labels for a new analyzer (3.3) to compare them.")
         if "unknown" in statuses:
             notes.append(f"{base_name}: {STATUS_TEXT['unknown']}.")
     ax.set_xticks(range(max_rounds), ["original"] + [f"round {round_number}" for round_number in range(1, max_rounds)])

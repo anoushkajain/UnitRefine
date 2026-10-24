@@ -48,6 +48,26 @@ jobs:
       - name: Run the tests
         run: uv run --locked pytest -v --durations=10
 
+  without-gui:
+    # installed without the GUI, as on a computing cluster: no Qt (nor the libraries it needs), pyqtgraph or
+    # spikeinterface-gui. Checks that unitrefine-apply doesn't need them (see docs/hpc.md)
+    name: Without the GUI
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install UnitRefine without the GUI
+        run: uv sync --locked --no-group gui
+
+      - name: Run the tests which don't need the GUI
+        run: uv run --no-sync pytest tests/test_without_gui.py -v
+
   newest-spikeinterface:
     # with the newest releases of every dependency, and with SpikeInterface's development version
     name: Newest ${{ matrix.spikeinterface }}

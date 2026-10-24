@@ -3,23 +3,7 @@ from pathlib import Path
 import PyQt5.QtWidgets as QtWidgets
 from spikeinterface_gui.main import check_folder_is_analyzer
 
-
-def find_analyzers(folder, max_depth=3):
-    """Finds SortingAnalyzer folders inside `folder`, without looking inside the analyzers themselves."""
-
-    found = []
-    folder = Path(folder)
-    if check_folder_is_analyzer(str(folder)):
-        return [folder]
-    if max_depth == 0:
-        return found
-    try:
-        subfolders = sorted(path for path in folder.iterdir() if path.is_dir() and not path.name.startswith("."))
-    except PermissionError:
-        return found
-    for subfolder in subfolders:
-        found += find_analyzers(subfolder, max_depth - 1)
-    return found
+from unitrefine.predictions import find_analyzers
 
 
 class ApplyModelsDialog(QtWidgets.QDialog):
