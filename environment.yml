@@ -37,6 +37,5 @@ dependencies:
   - pip:
       # Not on conda-forge; installed via pip into the conda env
       - spikeinterface-gui>=0.14.0
-      - modal-python>=0.4.2.1
   # UnitRefine itself is installed manually after `conda env create` with
   # `pip install -e . --no-deps` (see header comment).

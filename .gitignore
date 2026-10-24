@@ -11,3 +11,9 @@ __pycache__
 my_new_project*/
 .claude/
 test.ipynb
+
+# results the tutorials write when they are run
+UnitRefine/tutorial/**/outputs/
+
+# test runs
+.pytest_cache/

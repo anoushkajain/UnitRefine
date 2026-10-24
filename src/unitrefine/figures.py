@@ -21,7 +21,7 @@ import pandas as pd
 from matplotlib import font_manager
 from matplotlib.figure import Figure
 
-from unitrefine import evaluation
+from unitrefine import evaluation, unwritable_file_message
 from unitrefine.predictions import (
     get_model_classes,
     map_quality_to_model_class,
@@ -252,8 +252,8 @@ def render(spec, progress=None):
     evaluation.skipped_analyzers.clear()
     reset_provenance(spec.analyzers)
     evaluation.set_progress_callback(progress)
-    spec.path.parent.mkdir(parents=True, exist_ok=True)
     try:
+        spec.path.parent.mkdir(parents=True, exist_ok=True)
         figure, notes = spec.make()
         add_footer(figure)
         temporary_path = spec.path.with_name(spec.path.stem + ".tmp.png")
@@ -263,8 +263,14 @@ def render(spec, progress=None):
         result = dict(status="done", notes=list(notes) + skipped_notes())
     except NoData as e:
         # don't leave an out of date figure behind
-        spec.path.unlink(missing_ok=True)
+        try:
+            spec.path.unlink(missing_ok=True)
+        except OSError:
+            pass
         result = dict(status="nodata", message=str(e), notes=skipped_notes())
+    except PermissionError as e:
+        # e.g. a read-only file in the figures folder: say how to fix it
+        result = dict(status="error", message=unwritable_file_message(e.filename or spec.path, e), notes=skipped_notes())
     except Exception as e:
         traceback.print_exc()
         result = dict(status="error", message=f"{type(e).__name__}: {e}", notes=skipped_notes())
@@ -273,8 +279,12 @@ def render(spec, progress=None):
     result["seconds"] = round(time.time() - start_time, 1)
     result["signature"] = signature(spec)
     result["title"] = spec.title
-    with open(sidecar_path(spec), "w") as f:
-        json.dump(result, f, indent=4)
+    try:
+        with open(sidecar_path(spec), "w") as f:
+            json.dump(result, f, indent=4)
+    except OSError as e:
+        # the figure is still shown; it is made again next time, as its record could not be saved
+        print(unwritable_file_message(sidecar_path(spec), e))
     return result
 
 
@@ -617,6 +627,17 @@ def make_metric_distributions(targets, num_metrics=9):
     return figure, []
 
 
+def roc_auc_from_ranks(is_positive, values):
+    """The AUC-ROC from ranks (Mann–Whitney U): the same as sklearn's roc_auc_score, ties included, and much faster."""
+    from scipy.stats import rankdata
+
+    is_positive = np.asarray(is_positive, dtype=bool)
+    ranks = rankdata(values)
+    num_positive = is_positive.sum()
+    num_negative = len(is_positive) - num_positive
+    return (ranks[is_positive].sum() - num_positive * (num_positive + 1) / 2) / (num_positive * num_negative)
+
+
 def metric_auc_values(table, positive_label, metric_names, min_units=3, num_resamples=200, seed=0):
     """
     The AUC-ROC of each metric on its own for telling `positive_label` units from the others, as in the
@@ -625,15 +646,6 @@ def metric_auc_values(table, positive_label, metric_names, min_units=3, num_resa
     (`num_resamples` times, with replacement) instead. Returns ({metric: values},
     {metric: the analyzer of each value, None for resamples}, method).
     """
-    from scipy.stats import rankdata
-
-    def roc_auc_score(is_positive, values):
-        # the AUC-ROC from ranks (Mann–Whitney U), the same as sklearn's roc_auc_score including ties, and much faster
-        ranks = rankdata(values)
-        num_positive = is_positive.sum()
-        num_negative = len(is_positive) - num_positive
-        return (ranks[is_positive].sum() - num_positive * (num_positive + 1) / 2) / (num_positive * num_negative)
-
     # plain arrays, so the many resamples are quick
     all_values = table[metric_names].replace([np.inf, -np.inf], np.nan).values.astype(float)
     all_positive = (table["label"] == positive_label).values
@@ -647,7 +659,7 @@ def metric_auc_values(table, positive_label, metric_names, min_units=3, num_resa
             finite = ~np.isnan(metric_values)
             positives = is_positive[finite]
             if positives.sum() >= min_units and (~positives).sum() >= min_units and np.ptp(metric_values[finite]) > 0:
-                values[metric_name] = roc_auc_score(positives, metric_values[finite])
+                values[metric_name] = roc_auc_from_ranks(positives, metric_values[finite])
         return values
 
     per_analyzer = [(analyzer, aucs(np.flatnonzero(analyzers == analyzer))) for analyzer in pd.unique(analyzers)]

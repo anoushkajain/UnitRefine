@@ -1,5 +1,6 @@
 from datetime import datetime
 from functools import partial
+import traceback
 
 from pathlib import Path
 
@@ -11,12 +12,51 @@ from spikeinterface.curation import train_model
 import numpy as np
 from copy import copy
 
-from unitrefine.evaluation import write_trained_on
+from unitrefine.evaluation import normalise_path, write_trained_on
 from unitrefine.predictions import as_model_input
 from unitrefine.theme import make_primary
 from unitrefine.widgets import BusyNotice
 
 TEST_PREDICTIONS_FILE = "test_predictions.csv"
+# which analyzer and unit each row of a model's training_data.csv comes from
+TRAINING_UNITS_FILE = "training_units.csv"
+
+
+def save_training_units(model_folder, units_used):
+    """
+    Saves which analyzer and unit each row of the model's training data comes from (training_units.csv), in
+    the order train_model concatenated them: the analyzers in order, each with its units in order. This lets
+    Retrain find the row of a unit which is relabelled. Nothing is saved if the rows don't match.
+    """
+    model_folder = Path(model_folder)
+    rows = [(str(path), str(unit_id)) for path, unit_ids in units_used.items() for unit_id in unit_ids]
+    training_data = pd.read_csv(model_folder / "training_data.csv", index_col="unit_id")
+    # the unit ids must match row by row; otherwise the order is not the one assumed here
+    if len(rows) != len(training_data) or [unit_id for _, unit_id in rows] != [str(unit_id) for unit_id in training_data.index]:
+        print(f"Could not match the training data of {model_folder.name} to its units; {TRAINING_UNITS_FILE} is not saved.")
+        return
+    # label_from: the retraining round which last set the row's label; empty for the labels the model was trained with
+    training_units = pd.DataFrame(rows, columns=["analyzer", "unit_id"])
+    training_units["label_from"] = ""
+    training_units.to_csv(model_folder / TRAINING_UNITS_FILE, index=False)
+
+
+def read_training_units(model_folder, num_rows):
+    """
+    The analyzer (as normalise_path gives it), unit id and label_from of each training row, as a DataFrame, or
+    None if the model has no training_units.csv or it doesn't have `num_rows` rows.
+    """
+    path = Path(model_folder) / TRAINING_UNITS_FILE
+    if not path.is_file():
+        return None
+    training_units = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if len(training_units) != num_rows:
+        print(f"{path} has {len(training_units)} rows, but the training data has {num_rows}; it is not used.")
+        return None
+    if "label_from" not in training_units.columns:
+        training_units["label_from"] = ""
+    training_units["analyzer"] = [normalise_path(analyzer) for analyzer in training_units["analyzer"]]
+    return training_units.reset_index(drop=True)
 
 
 def save_test_predictions(model_folder, test_size, seed):
@@ -252,7 +292,7 @@ class TrainWindow(QtWidgets.QMainWindow):
             if labels_path.is_file():
 
                 labels_df = pd.read_csv(labels_path).sort_values('unit_id')
-                labels.append(labels_df['quality'].values)
+                labels.append(labels_df['quality'].to_numpy(dtype=object))
 
                 metrics_path = analyzer_folder / "labelled_metrics.csv"
                 metrics_paths.append(metrics_path)
@@ -417,8 +457,9 @@ class TrainWindow(QtWidgets.QMainWindow):
             labelled_metrics.loc[labels_df["unit_id"].values].to_csv(task_metrics_path, index_label="unit_id")
 
             metrics_paths.append(task_metrics_path)
-            labels.append(labels_df["task_label"].values)
-            self.units_used[analyzer_path] = labels_df["unit_id"].values
+            # a numpy array: with pandas 3, .values of a text column is a StringArray, which train_model refuses
+            labels.append(labels_df["task_label"].to_numpy(dtype=object))
+            self.units_used[analyzer_path] = labels_df["unit_id"].to_numpy()
 
         return metrics_paths, labels
 
@@ -523,24 +564,31 @@ class TrainWindow(QtWidgets.QMainWindow):
 
                 # an explicit seed, so the test split can be made again for the figures
                 seed = int(np.random.default_rng().integers(0, 2**31))
-                train_model(
-                    mode="csv",
-                    imputation_strategies=imputation_strategies,
-                    scaling_techniques=scaling_techniques,
-                    classifiers=classifiers,
-                    test_size=test_size,
-                    folder=folder,
-                    metric_names=self.metric_names,
-                    metrics_paths=metrics_paths,
-                    labels=labels,
-                    seed=seed,
-                )
+                try:
+                    train_model(
+                        mode="csv",
+                        imputation_strategies=imputation_strategies,
+                        scaling_techniques=scaling_techniques,
+                        classifiers=classifiers,
+                        test_size=test_size,
+                        folder=folder,
+                        metric_names=self.metric_names,
+                        metrics_paths=metrics_paths,
+                        labels=labels,
+                        seed=seed,
+                    )
+                except Exception as e:
+                    # an error here would otherwise close UnitRefine
+                    traceback.print_exc()
+                    QtWidgets.QMessageBox.warning(self, "Training failed", f"Could not train '{training_tasks[task_name]['title']}':\n\n{e}")
+                    continue
 
                 balanced_accuracy, precision, recall = pd.read_csv(folder / 'model_accuracies.csv')[['balanced_accuracy', 'precision', 'recall']].values[0]
                 print(f"\nBest model stats:\n    Balanced Accuray: {balanced_accuracy}\n    Precision: {precision}\n    Recall: {recall}")
 
                 # record which human labels the model learned from, so the figures can leave them out
                 write_trained_on(folder, self.units_used)
+                save_training_units(folder, self.units_used)
                 try:
                     save_test_predictions(folder, test_size, seed)
                 except Exception as e:
