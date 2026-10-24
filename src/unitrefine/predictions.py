@@ -215,7 +215,8 @@ def save_csv_atomic(table, path, **to_csv_kwargs):
     time (by the figures, or the SpikeInterface-GUI process) is never half written.
     """
     path = Path(path)
-    temporary_path = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    # a short name, so the path doesn't become longer than Windows allows (260 characters) when the name is long
+    temporary_path = path.with_name(f".{os.getpid()}-{threading.get_ident()}.tmp")
     table.to_csv(temporary_path, **to_csv_kwargs)
     for attempt in range(20):
         try:
@@ -296,6 +297,49 @@ def get_saved_or_new_predictions(sorting_analyzer, analyzer_path, mode, model_fo
         return label_columns, confidence_columns, selection_confidence
 
 
+def is_analyzer_folder(folder):
+    """
+    True for a SortingAnalyzer folder (binary or zarr), as spikeinterface_gui.main.check_folder_is_analyzer checks,
+    which can't be used without the GUI installed.
+    """
+    folder = Path(folder)
+    if not folder.is_dir():
+        return False
+    if folder.suffix == ".zarr":
+        import zarr
+        try:
+            info = zarr.open(str(folder), mode="r").attrs.get("spikeinterface_info")
+        except Exception:
+            return False
+    else:
+        info_file = folder / "spikeinterface_info.json"
+        if not info_file.is_file():
+            return False
+        try:
+            info = json.loads(info_file.read_text())
+        except (OSError, ValueError):
+            return False
+    return isinstance(info, dict) and info.get("object") == "SortingAnalyzer"
+
+
+def find_analyzers(folder, max_depth=3):
+    """Finds SortingAnalyzer folders inside `folder`, without looking inside the analyzers themselves."""
+
+    found = []
+    folder = Path(folder)
+    if is_analyzer_folder(folder):
+        return [folder]
+    if max_depth == 0:
+        return found
+    try:
+        subfolders = sorted(path for path in folder.iterdir() if path.is_dir() and not path.name.startswith("."))
+    except PermissionError:
+        return found
+    for subfolder in subfolders:
+        found += find_analyzers(subfolder, max_depth - 1)
+    return found
+
+
 def analyzer_output_names(analyzer_paths):
     """
     Short unique names for analyzers, used to name their output files. Analyzer folders often
@@ -311,11 +355,13 @@ def analyzer_output_names(analyzer_paths):
         depth += 1
 
 
-def apply_to_analyzers(analyzer_paths, mode, model_folders, key, output_folder, output_names=None):
+def apply_to_analyzers(analyzer_paths, mode, model_folders, key, output_folder, output_names=None,
+                       compute_missing_metrics=False, job_kwargs=None):
     """
     Applies the model selection to each analyzer and saves its predictions to
     `{output_folder}/{analyzer name}__labels_from_{key}.csv`. Analyzers which can't be labelled,
-    e.g. because a metric needed by a model is missing, are skipped and reported.
+    e.g. because a metric needed by a model is missing, are skipped and reported. With
+    `compute_missing_metrics`, the metrics the models need are computed first and saved in the analyzer.
 
     The analyzers' file names start with `output_names` (default: short unique names from their paths).
     Returns a list of dicts with the analyzer `path`, its `output_name`, and the saved `file` (or the `error`).
@@ -334,6 +380,10 @@ def apply_to_analyzers(analyzer_paths, mode, model_folders, key, output_folder, 
         output_file = output_folder / predictions_file_name(f"{output_name}__", key)
         try:
             sorting_analyzer = si.load_sorting_analyzer(analyzer_path, load_extensions=False)
+            if compute_missing_metrics:
+                # imported here, since metrics imports this module
+                from unitrefine.metrics import compute_missing_metrics as compute_metrics
+                compute_metrics(sorting_analyzer, model_folders, job_kwargs)
             # applying the same models to the same analyzer again reuses the saved predictions
             label_columns, confidence_columns, _ = get_saved_or_new_predictions(
                 sorting_analyzer, analyzer_path, mode, model_folders, output_file
@@ -433,6 +483,8 @@ def find_least_confident_units(targets, mode, model_folders, key, num_units):
 
 def describe_prediction_error(error):
     """A readable message for errors raised while predicting, e.g. missing metrics."""
+    if isinstance(error, OSError) and error.filename is not None:
+        return f"{error.strerror}: {error.filename}"
     message = " ".join(str(arg) for arg in error.args) if len(error.args) > 0 else str(error)
     if "required metrics" in message:
         return f"{message}. Compute the missing metrics for this analyzer, or use a model which doesn't need them."

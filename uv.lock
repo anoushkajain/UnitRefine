@@ -2463,17 +2463,22 @@ dependencies = [
     { name = "numba" },
     { name = "numcodecs" },
     { name = "pandas" },
+    { name = "pyyaml" },
+    { name = "s3fs" },
+    { name = "scikit-learn" },
+    { name = "skops" },
+    { name = "spikeinterface" },
+]
+
+[package.optional-dependencies]
+gui = [
+    { name = "matplotlib" },
     { name = "pyqt5" },
     { name = "pyqt5-qt5", version = "5.15.2", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "pyqt5-qt5", version = "5.15.17", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pyqtgraph" },
-    { name = "pyyaml" },
-    { name = "s3fs" },
-    { name = "scikit-learn" },
     { name = "shap", version = "0.51.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "shap", version = "0.54.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "skops" },
-    { name = "spikeinterface" },
     { name = "spikeinterface-gui" },
 ]
 
@@ -2481,30 +2486,36 @@ dependencies = [
 dev = [
     { name = "pytest" },
 ]
+gui = [
+    { name = "unitrefine", extra = ["gui"] },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "huggingface-hub", specifier = ">=0.35.0" },
+    { name = "matplotlib", marker = "extra == 'gui'", specifier = ">=3.8" },
     { name = "mtscomp", specifier = ">=1.0.2" },
     { name = "numba", specifier = ">=0.61.0" },
     { name = "numcodecs", specifier = "==0.15.1" },
     { name = "pandas", specifier = ">=2.2.3" },
-    { name = "pyqt5", specifier = ">=5.15.11" },
-    { name = "pyqt5-qt5", marker = "sys_platform == 'darwin'", specifier = ">=5.15.0" },
-    { name = "pyqt5-qt5", marker = "sys_platform == 'linux'", specifier = ">=5.15.0" },
-    { name = "pyqt5-qt5", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'", specifier = "<5.15.18" },
-    { name = "pyqtgraph", specifier = ">=0.13.7" },
+    { name = "pyqt5", marker = "extra == 'gui'", specifier = ">=5.15.11" },
+    { name = "pyqt5-qt5", marker = "sys_platform == 'darwin' and extra == 'gui'", specifier = ">=5.15.0" },
+    { name = "pyqt5-qt5", marker = "sys_platform == 'linux' and extra == 'gui'", specifier = ">=5.15.0" },
+    { name = "pyqt5-qt5", marker = "platform_machine == 'AMD64' and sys_platform == 'win32' and extra == 'gui'", specifier = "<5.15.18" },
+    { name = "pyqtgraph", marker = "extra == 'gui'", specifier = ">=0.13.7" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "s3fs", specifier = ">=2025.10.0" },
     { name = "scikit-learn", specifier = "==1.7" },
-    { name = "shap", specifier = ">=0.49.1" },
+    { name = "shap", marker = "extra == 'gui'", specifier = ">=0.49.1" },
     { name = "skops", specifier = ">=0.11.0" },
     { name = "spikeinterface", specifier = ">=0.105.0" },
-    { name = "spikeinterface-gui", specifier = ">=0.14.0" },
+    { name = "spikeinterface-gui", marker = "extra == 'gui'", specifier = ">=0.14.0" },
 ]
+provides-extras = ["gui"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8" }]
+gui = [{ name = "unitrefine", extras = ["gui"] }]
 
 [[package]]
 name = "urllib3"

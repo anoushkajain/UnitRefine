@@ -7,29 +7,7 @@ import pandas as pd
 import PyQt5.QtWidgets as QtWidgets
 from PyQt5.QtCore import pyqtSignal
 
-
-# UnitRefine models published on the Hugging Face Hub, shown as options when loading from HFH.
-# Each group is shown with a gap before it and an optional heading; models are (repo id, note shown after the name).
-CASCADE_NOTE = "(can be combined in a cascade for good / MUA / noise labels)"
-LIGHTWEIGHT_NOTE = "(based on fast-to-compute metrics, no PCA metrics; can be combined in a cascade for good / MUA / noise labels)"
-hfh_model_groups = [
-    dict(title=None, models=[
-        ("SpikeInterface/UnitRefine_noise_neural_classifier", CASCADE_NOTE),
-        ("SpikeInterface/UnitRefine_sua_mua_classifier", CASCADE_NOTE),
-    ]),
-    dict(title=None, models=[
-        ("SpikeInterface/UnitRefine_noise_neural_classifier_lightweight", LIGHTWEIGHT_NOTE),
-        ("SpikeInterface/UnitRefine_sua_mua_classifier_lightweight", LIGHTWEIGHT_NOTE),
-    ]),
-    dict(title="SUA only models", models=[
-        ("AnoushkaJain3/UnitRefine-generalized-sua-classifier", ""),
-        ("AnoushkaJain3/UnitRefine-mice-sua-classifier", ""),
-        ("AnoushkaJain3/UnitRefine-rat-sua-classifier", ""),
-        ("AnoushkaJain3/UnitRefine-mole-rat-sua-classifier", ""),
-        ("AnoushkaJain3/UnitRefine-monkey-sua-classifier", ""),
-        ("AnoushkaJain3/UnitRefine-human-sua-classifier", ""),
-    ]),
-]
+from unitrefine.models_hub import hfh_model_groups
 
 
 class HFHModelsDialog(QtWidgets.QDialog):
