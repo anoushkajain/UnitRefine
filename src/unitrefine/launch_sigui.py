@@ -9,7 +9,9 @@ from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QWidget
 from pyqtgraph import mkQApp
 from PyQt5.QtCore import QTimer
-from unitrefine import SIGUI_SHOWN_MARKER, check_sigui_version, report_sigui_step
+from unitrefine import (
+    SIGUI_SHOWN_MARKER, check_sigui_version, report_sigui_step, save_labels_or_backup, unwritable_file_message,
+)
 
 check_sigui_version()
 from spikeinterface_gui.backend_qt import QtMainWindow
@@ -56,9 +58,13 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, save_folder, an
 
     labelled_metrics = all_metrics[all_metrics.index.isin(labelled_unit_ids)]
 
-    all_metrics.to_csv(save_folder / "all_metrics.csv", index_label="unit_id")
-    labelled_metrics.to_csv(save_folder / "labelled_metrics.csv", index_label="unit_id")
-    labels_df.to_csv(save_folder / "labels.csv", index=False)
+    # the labels first, so they are saved (or backed up) even if the metrics files can't be written
+    save_labels_or_backup(labels_df, save_folder / "labels.csv", index=False)
+    try:
+        all_metrics.to_csv(save_folder / "all_metrics.csv", index_label="unit_id")
+        labelled_metrics.to_csv(save_folder / "labelled_metrics.csv", index_label="unit_id")
+    except OSError as error:
+        print(unwritable_file_message(save_folder, error), flush=True)
 
 
 argv = sys.argv[1:]

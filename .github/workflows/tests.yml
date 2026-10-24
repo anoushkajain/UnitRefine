@@ -1,0 +1,84 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # every Monday, with the newest SpikeInterface: finds changes in SpikeInterface which break UnitRefine
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # the GUI tests run without a screen
+  QT_QPA_PLATFORM: offscreen
+
+jobs:
+  tests:
+    # with the versions in uv.lock, which is what `uv sync` installs for users of the repository
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    if: github.event_name != 'schedule'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the libraries Qt needs (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libegl1 libxkbcommon0 libdbus-1-3 libfontconfig1
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install UnitRefine
+        run: uv sync --locked
+
+      - name: Run the tests
+        run: uv run --locked pytest -v --durations=10
+
+  newest-spikeinterface:
+    # with the newest releases of every dependency, and with SpikeInterface's development version
+    name: Newest ${{ matrix.spikeinterface }}
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        spikeinterface: [release, main branch]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the libraries Qt needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libegl1 libxkbcommon0 libdbus-1-3 libfontconfig1
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install UnitRefine with the newest dependencies
+        run: uv sync --upgrade
+
+      - name: Install SpikeInterface's development version
+        if: matrix.spikeinterface == 'main branch'
+        run: uv pip install "spikeinterface @ git+https://github.com/SpikeInterface/spikeinterface.git"
+
+      - name: Versions
+        run: uv run --no-sync python -c "import spikeinterface, spikeinterface_gui, pandas, sklearn; print('spikeinterface', spikeinterface.__version__, '| spikeinterface-gui', spikeinterface_gui.__version__, '| pandas', pandas.__version__, '| scikit-learn', sklearn.__version__)"
+
+      - name: Run the tests
+        run: uv run --no-sync pytest -v --durations=10

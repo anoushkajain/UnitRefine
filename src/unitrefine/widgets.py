@@ -201,6 +201,7 @@ class CollapsibleSection(QtWidgets.QFrame):
 
     def __init__(self, number, title, summary="", expanded=True, parent=None):
         super().__init__(parent)
+        self.number = number
         section_theme = theme.SECTION_THEMES.get(number, theme.SECTION_THEMES[1])
         self.setObjectName("section")
         self.setStyleSheet(

@@ -9,7 +9,9 @@ from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QWidget
 from pyqtgraph import mkQApp
 from PyQt5.QtCore import QTimer
-from unitrefine import SIGUI_SHOWN_MARKER, check_sigui_version, report_sigui_step
+from unitrefine import (
+    SIGUI_SHOWN_MARKER, check_sigui_version, report_sigui_step, save_labels_or_backup, unwritable_file_message,
+)
 
 check_sigui_version()
 from unitrefine.import_labels import compute_all_metrics
@@ -67,12 +69,17 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, save_folder, fi
         labels_df = pd.concat([kept[['quality', 'unit_id']], labels_df])
 
     labels_df = labels_df.sort_values('unit_id', key=lambda unit_ids: unit_ids.astype(str))
-    save_csv_atomic(labels_df, relabelled_units_path, index=False)
+    save_labels_or_backup(labels_df, relabelled_units_path, write=lambda table, path: save_csv_atomic(table, path, index=False),
+                          index=False)
 
     # the metrics of all units, which Retrain uses; `analyzer` is the full analyzer, not only the units shown
     all_metrics_path = save_folder / f"{file_prefix}all_metrics.csv"
     if not all_metrics_path.is_file():
-        compute_all_metrics(analyzer).to_csv(all_metrics_path, index_label="unit_id")
+        try:
+            compute_all_metrics(analyzer).to_csv(all_metrics_path, index_label="unit_id")
+        except OSError as error:
+            # Retrain makes this file again if it is missing
+            print(unwritable_file_message(all_metrics_path, error), flush=True)
 
 argv = sys.argv[1:]
 

@@ -17,7 +17,7 @@ from unitrefine import theme
 LOG_FILE = "retraining_log.json"
 UNITS_FILE = "retraining_units.csv"
 
-UNIT_COLUMNS = ["analyzer", "group", "unit_id", "original_label", "model_label", "your_label", "taught_as"]
+UNIT_COLUMNS = ["analyzer", "group", "unit_id", "original_label", "model_label", "your_label", "taught_as", "change"]
 UNIT_COLUMN_TITLES = {
     "analyzer": "Recording",
     "group": "Training or new",
@@ -26,6 +26,7 @@ UNIT_COLUMN_TITLES = {
     "model_label": "Model's label",
     "your_label": "Your label",
     "taught_as": "Taught as",
+    "change": "Change",
 }
 
 
@@ -47,7 +48,21 @@ def read_log(model_folder):
         log = json.load(f)
     units_path = model_folder / UNITS_FILE
     units = pd.read_csv(units_path, dtype=str).fillna("") if units_path.is_file() else pd.DataFrame(columns=UNIT_COLUMNS)
+    # rounds saved before the change column was added: every unit was added as a new row
+    if "change" not in units.columns:
+        units["change"] = "new unit"
     return log, units
+
+
+def learned_text(log, units):
+    """E.g. "5 units learned: 3 new units, 2 corrected labels"."""
+    num_units = log.get("num_units_added", len(units))
+    if "num_corrected_labels" not in log:
+        return f"{num_units} units added"
+    parts = [f"{log.get('num_new_units', 0)} new units"]
+    if log["num_corrected_labels"] > 0:
+        parts.append(f"{log['num_corrected_labels']} corrected labels")
+    return f"{num_units} units learned: {', '.join(parts)}"
 
 
 def short_path(path):
@@ -149,12 +164,15 @@ class RetrainingDetailsDialog(QtWidgets.QDialog):
         accuracy, _ = accuracy_text(log)
         held_out = log.get("held_out") or {}
         summary = (
-            f"<b>{log.get('num_units_added', len(units))} units added</b> to the "
+            f"<b>{learned_text(log, units)}</b>, for the "
             f"{log.get('num_training_units_before', '?')} training units of {log.get('parent', 'the model')}, "
             f"on {log.get('date', '').replace('T', ' ')}.<br>"
             f"<b>Held-out balanced accuracy: {accuracy}</b> on {held_out.get('num_units', '?')} units which were not "
-            "used for training: the same classifier trained without the new units, then with them."
+            "used for training: the same classifier trained without your new labels, then with them."
         )
+        if log.get("num_already_learned", 0) > 0:
+            summary += (f"<br>{log['num_already_learned']} relabelled units were not added: an earlier round already "
+                        "taught the model the same label.")
         if log.get("num_same_as_original", 0) > 0:
             summary += (f"<br>{log['num_same_as_original']} relabelled units were not added: in this model's classes your "
                         "new label was the same as their original label, so they teach it nothing new.")
@@ -189,7 +207,9 @@ class RetrainingDetailsDialog(QtWidgets.QDialog):
         layout.addWidget(QtWidgets.QLabel(
             "<span style='color:#667085'><b>Original label</b>: your curated or imported label before relabelling (— if "
             "the unit had none). <b>Model's label</b>: what the model said when the unit was picked. <b>Taught as</b>: "
-            "your label in the model's classes, which the model learned. Red: you disagreed with the model.</span>"))
+            "your label in the model's classes, which the model learned. <b>Change</b>: <i>new unit</i> is added to the "
+            "training data; <i>label corrected</i> was already in it, and its label is replaced by yours. Red: you "
+            "disagreed with the model.</span>"))
 
         buttons = QtWidgets.QHBoxLayout()
         buttons.addWidget(QtWidgets.QLabel(f"<span style='color:#667085'>Saved in {Path(folder) / UNITS_FILE}</span>"), 1)

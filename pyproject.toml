@@ -25,7 +25,6 @@ dependencies = [
 
     "pyqt5>=5.15.11",
     "s3fs>=2025.10.0",
-    "modal-python>=0.4.2.1",
     "pyqt5-qt5<5.15.18; sys_platform == 'win32' and platform_machine == 'AMD64'",
     "pyqt5-qt5>=5.15.0; sys_platform == 'darwin'",
     "pyqt5-qt5>=5.15.0; sys_platform == 'linux'",
@@ -46,5 +45,17 @@ unitrefine = ["resources/*", "resources/fonts/*"]
 
 [project.scripts]
 unitrefine = "unitrefine.launcher:main"
+
+[dependency-groups]
+# for running the tests: uv run pytest
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # from the small synthetic recordings the tests make
+    "ignore::UserWarning:spikeinterface.*",
+    "ignore::DeprecationWarning",
+]
 
 

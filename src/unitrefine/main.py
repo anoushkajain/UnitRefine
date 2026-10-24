@@ -12,8 +12,7 @@ import numpy as np
 import pandas as pd
 
 from huggingface_hub import repo_exists
-from modAL.models import ActiveLearner
-from modAL.uncertainty import uncertainty_sampling
+from sklearn.base import clone
 from sklearn.metrics import balanced_accuracy_score
 from spikeinterface.curation.model_based_curation import load_model
 from skops.io import dump
@@ -27,9 +26,9 @@ from spikeinterface_gui.main import check_folder_is_analyzer
 from spikeinterface.core.core_tools import is_path_remote
 from spikeinterface.core import load_sorting_analyzer
 
-from unitrefine import SIGUI_SHOWN_MARKER, SIGUI_STEP_MARKER
+from unitrefine import LABELS_BACKUP_MARKER, SIGUI_SHOWN_MARKER, SIGUI_STEP_MARKER, unwritable_file_message
 from unitrefine.sigui_progress import OpeningDialog, CURATE_STEPS, INSPECT_STEPS
-from unitrefine.train import TrainWindow
+from unitrefine.train import TRAINING_UNITS_FILE, TrainWindow, read_training_units
 from unitrefine.import_labels import import_labels, compute_all_metrics
 from unitrefine.manage_models import ManageModelsWindow, HFHModelsDialog
 from unitrefine.model_selection import ModelSelectionWidget
@@ -139,7 +138,7 @@ class UnitRefineProject:
         Path(folder_name / "models").mkdir(exist_ok=True)
 
         with open(folder_name / "config.json", 'w') as f:
-            json.dump(self.config, f)
+            json.dump(self.config, f, indent=4)
 
         for analyzer_name, analyzer_dict in self.analyzers.items():
 
@@ -150,16 +149,24 @@ class UnitRefineProject:
 
             if path is not None:
                 with open(save_path / 'path.txt', 'w') as output:
-                    output.write(path)
+                    output.write(str(path))
 
-            curation = analyzer_dict.get('labels')
-            if curation is not None:
-                curation.to_csv(save_path / 'labels.csv')
+            # labels.csv is not written here: Curate and Import labels write it themselves. Writing the copy read
+            # when the project was opened would replace labels set since then
+
 
     def save_config(self):
         """Saves only config.json, leaving the analyzers' label files untouched."""
-        with open(Path(self.folder_name) / "config.json", 'w') as f:
-            json.dump(self.config, f, indent=4)
+        config_path = Path(self.folder_name) / "config.json"
+        try:
+            with open(config_path, 'w') as f:
+                json.dump(self.config, f, indent=4)
+        except OSError as e:
+            # e.g. a read-only file: the settings are not saved, but nothing else is lost
+            report_unwritable_file(config_path, e)
+
+    # called with (path, message) when a file can't be written; the main window shows the message
+    on_unwritable_file = None
 
     def add_analyzer(self, directory):
 
@@ -173,6 +180,13 @@ class UnitRefineProject:
 
         analyer_in_project = Path(f'analyzers/analyzer_{new_key}')
         self.analyzers[new_key] = {'path': directory, 'analyzer_in_project': analyer_in_project}
+
+
+def report_unwritable_file(path, error):
+    message = unwritable_file_message(path, error)
+    print(message)
+    if UnitRefineProject.on_unwritable_file is not None:
+        UnitRefineProject.on_unwritable_file(path, message)
 
 
 def load_project(folder_name):
@@ -250,6 +264,10 @@ class MainWindow(QtWidgets.QWidget):
 
         # figures are made one at a time in a background thread; changes are collected for a moment first,
         # so several changes at once (e.g. a new model selected) only update the figures once
+        # files which can't be written (e.g. read-only) are reported once each, in a message box
+        self.reported_unwritable_files = set()
+        UnitRefineProject.on_unwritable_file = self.show_unwritable_file
+
         self.figure_worker = FigureWorker(self)
         self.figure_refresh_timer = QTimer(self)
         self.figure_refresh_timer.setSingleShot(True)
@@ -1005,9 +1023,35 @@ class MainWindow(QtWidgets.QWidget):
 
         self.make_curation_button_list()
 
+    def show_unwritable_file(self, path, message):
+        if str(path) in self.reported_unwritable_files:
+            return
+        self.reported_unwritable_files.add(str(path))
+        QtWidgets.QMessageBox.warning(self, "Could not save a file", message)
+
+    def confirm(self, title, text):
+        """Asks Yes or No, with No as the default; returns True for Yes."""
+        answer = QtWidgets.QMessageBox.question(
+            self, title, text, QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+        return answer == QtWidgets.QMessageBox.Yes
+
     def remove_analyzer(self, analyzer_index):
 
-        analyzer_folder = Path(self.project.folder_name) / Path(self.project.analyzers[analyzer_index]['analyzer_in_project'])
+        analyzer = self.project.analyzers[analyzer_index]
+        analyzer_folder = Path(self.project.folder_name) / Path(analyzer['analyzer_in_project'])
+
+        # the folder holds the labels curated or imported for this analyzer, which can't be brought back
+        labels_path = analyzer_folder / "labels.csv"
+        num_labels = len(pd.read_csv(labels_path)) if labels_path.is_file() else 0
+        losing = (f"its {num_labels} labels, which can't be brought back" if num_labels > 0
+                  else "its files in the project")
+        if not self.confirm(
+            "Remove analyzer?",
+            f"Remove {analyzer['path']} from the project and delete {losing}?\n\n"
+            "The recording itself is not deleted.",
+        ):
+            return
+
         shutil.rmtree(str(analyzer_folder))
         if analyzer_folder.is_dir():
             os.rmdir(str(analyzer_folder))
@@ -1394,8 +1438,20 @@ class MainWindow(QtWidgets.QWidget):
         X_training = X_training_raw.drop('unit_id', axis=1).values
         Y_training_raw = pd.read_csv(model_folder / 'labels.csv')
         Y_training = Y_training_raw.drop('unit_index', axis=1).values
+        label_column = Y_training_raw.drop('unit_index', axis=1).columns[0]
 
         y_training = Y_training.ravel()
+
+        # which analyzer and unit each training row comes from, so a relabelled unit the model was trained on gets
+        # its label changed in its own row, instead of a second row with the other label. Not known for models
+        # trained before this was saved, or downloaded ones: their relabelled units are added as new rows
+        training_rows = read_training_units(model_folder, len(y_training))
+        if training_rows is None:
+            print(f"{model_folder.name} has no {TRAINING_UNITS_FILE}, so relabelled units it was trained on are added as new rows.")
+            row_of_unit = None
+        else:
+            row_of_unit = {(analyzer, unit_id): row for row, (analyzer, unit_id) in
+                           enumerate(zip(training_rows['analyzer'], training_rows['unit_id']))}
 
         # Split indices so we can keep unit_id aligned too
         idx = np.arange(len(y_training))
@@ -1406,36 +1462,20 @@ class MainWindow(QtWidgets.QWidget):
             stratify=y_training if len(np.unique(y_training)) > 1 else None
         )
 
-        X_train_raw = X_training[train_idx]
-        y_train = y_training[train_idx]
-
-        X_test_raw = X_training[test_idx]
-        y_test = y_training[test_idx]
-
-        # --- preprocess train/test consistently using the already-fitted preprocessing
-        X_train_proc = model_scaler.transform(
-            # as 32-bit floats, like SpikeInterface when it trains and applies models
-            model_imputer.transform(as_model_input(pd.DataFrame(X_train_raw, columns=model_metric_names)))
+        # --- preprocess consistently using the already-fitted preprocessing,
+        # as 32-bit floats, like SpikeInterface when it trains and applies models
+        X_training_proc = model_scaler.transform(
+            model_imputer.transform(as_model_input(pd.DataFrame(X_training, columns=model_metric_names)))
         )
-        X_test_proc = model_scaler.transform(
-            model_imputer.transform(as_model_input(pd.DataFrame(X_test_raw, columns=model_metric_names)))
-        )
-
-        learner = ActiveLearner(
-            estimator=model['classifier'],
-            query_strategy=uncertainty_sampling,  # Query strategy: select most uncertain samples
-            X_training=X_train_proc,
-            y_training=y_train
-        )
-        # the classifier is now trained on the training split only: its score on the held-out units is the
-        # baseline, which the classifier trained with the relabelled units too is compared with (the parent model
-        # itself may have been trained on the held-out units, so it would not be a fair baseline)
-        held_out_before = balanced_accuracy_score(y_test, learner.estimator.predict(X_test_proc))
 
         X_new = []
         X_just_values = []
         y_new = []
+        # the analyzer and unit of each new row
+        new_rows_units = []
         units_added = {}
+        # new labels for rows of the training data, as {row: label code}
+        changed_rows = {}
         # what the retraining log records about each added unit, and the relabelled units which were not added
         added_unit_details = []
         num_same_as_original = 0
@@ -1516,24 +1556,44 @@ class MainWindow(QtWidgets.QWidget):
             own_model_labels = model_labels_from(model_folder.name)
             picked_with_labels = {key: model_labels_from(key) for key in relabelled_units['picked_with'].unique()}
             already_learned = parent_trained_on.get(normalise_path(target['path']), set())
+            analyzer_key = normalise_path(target['path'])
 
-            y_new_with_unit_ids = []
+            new_units = []
             for _, relabelled_unit in relabelled_units.iterrows():
                 new_class = _map_quality(relabelled_unit['quality'])
                 if new_class is None:
                     num_not_in_classes += 1
                     continue
                 unit_id = str(relabelled_unit['unit_id'])
-                if unit_id in already_learned and unit_id not in original_qualities:
-                    # added in an earlier retraining round
-                    num_already_learned += 1
-                    continue
-                # compare in the model's classes, e.g. MUA -> good is no change for a noise vs neural model
-                if unit_id in original_qualities and new_class == _map_quality(original_qualities[unit_id]):
-                    num_same_as_original += 1
-                    continue
-                # a newly labelled unit, or a new label which contradicts the original label
-                y_new_with_unit_ids.append([invert_label_conversion[new_class], unit_id])
+                label_code = invert_label_conversion[new_class]
+                row = row_of_unit.get((analyzer_key, unit_id)) if row_of_unit is not None else None
+                if row is not None:
+                    # the model was trained on this unit: compare with the label it learned, in the model's
+                    # classes (e.g. MUA -> good is no change for a noise vs neural model)
+                    if y_training[row] == label_code:
+                        if training_rows['label_from'][row] == "":
+                            num_same_as_original += 1
+                        else:
+                            # its label was set in an earlier retraining round
+                            num_already_learned += 1
+                        continue
+                    changed_rows[row] = label_code
+                    change = "label corrected"
+                elif row_of_unit is not None:
+                    # a unit the model was not trained on (e.g. from a new analyzer): a new row
+                    new_units.append((label_code, unit_id))
+                    change = "new unit"
+                else:
+                    # without training_units.csv, only the units and their original labels are known
+                    if unit_id in already_learned and unit_id not in original_qualities:
+                        # added in an earlier retraining round
+                        num_already_learned += 1
+                        continue
+                    if unit_id in original_qualities and new_class == _map_quality(original_qualities[unit_id]):
+                        num_same_as_original += 1
+                        continue
+                    new_units.append((label_code, unit_id))
+                    change = "new unit"
                 added_unit_details.append(dict(
                     analyzer=str(target['path']),
                     group="training" if target['analyzer_index'] is not None else "new",
@@ -1542,16 +1602,18 @@ class MainWindow(QtWidgets.QWidget):
                     model_label=picked_with_labels[relabelled_unit['picked_with']].get(unit_id, own_model_labels.get(unit_id, "")),
                     your_label=relabelled_unit['quality'],
                     taught_as=new_class,
+                    change=change,
                 ))
+                units_added.setdefault(target['path'], []).append(unit_id)
 
-            for quality, unit_id in y_new_with_unit_ids:
+            for label_code, unit_id in new_units:
                 unit_metrics = all_metrics[all_metrics_unit_ids == unit_id]
                 X_new.append(unit_metrics.values[0])
                 X_just_values.append(unit_metrics.drop('unit_id', axis=1).values[0])
-                y_new.append(quality)
-                units_added.setdefault(target['path'], []).append(unit_id)
+                y_new.append(label_code)
+                new_rows_units.append((analyzer_key, unit_id))
 
-        if len(y_new) == 0:
+        if len(y_new) == 0 and len(changed_rows) == 0:
             # say why, so the user knows what to do
             reasons = []
             if num_relabelled == 0:
@@ -1569,12 +1631,35 @@ class MainWindow(QtWidgets.QWidget):
             print(f"No relabelled units change the training data of {model_folder.name}, so it was not retrained: {reasons}")
             return dict(retrained=False, reasons=reasons, no_relabels=num_relabelled == 0)
 
-        # X_imputed = model_imputer.fit_transform(pd.DataFrame(X_just_values,columns=model_metric_names))
-        # learner.teach(X_imputed, y_new)
+        # the training data with your labels: corrected labels in their rows, then the new units
+        y_corrected = y_training.copy()
+        for row, label_code in changed_rows.items():
+            y_corrected[row] = label_code
+        # relabelled units in the held-out split are learned too, so they are not held out; both classifiers are
+        # scored on the same held-out units, whose labels did not change
+        test_idx = np.array([row for row in test_idx if row not in changed_rows], dtype=int)
+        moved_idx = np.array(sorted(row for row in changed_rows if row not in set(train_idx)), dtype=int)
+        X_test_proc, y_test = X_training_proc[test_idx], y_training[test_idx]
+
+        def held_out_score(classifier):
+            # no held-out units are left if you relabelled all of them
+            return balanced_accuracy_score(y_test, classifier.predict(X_test_proc)) if len(y_test) > 0 else float("nan")
+
+        # the classifier trained on the training split only, with the labels before this round: its score on the
+        # held-out units is the baseline (the parent model itself may have been trained on the held-out units,
+        # so it would not be a fair baseline)
+        classifier_before = clone(model['classifier']).fit(X_training_proc[train_idx], y_training[train_idx])
+        held_out_before = held_out_score(classifier_before)
+
+        # then trained again with your labels
         X_new_proc = model_scaler.transform(
             model_imputer.transform(as_model_input(pd.DataFrame(X_just_values, columns=model_metric_names)))
+        ) if len(y_new) > 0 else np.empty((0, X_training_proc.shape[1]))
+        learned_idx = np.concatenate([train_idx, moved_idx])
+        retrained_classifier = clone(model['classifier']).fit(
+            np.concatenate([X_training_proc[learned_idx], X_new_proc]),
+            np.concatenate([y_corrected[learned_idx], np.asarray(y_new, dtype=y_corrected.dtype)]),
         )
-        learner.teach(X_new_proc, y_new)
 
         all_training_data = pd.concat([
             pd.DataFrame(X_training_raw, columns=np.concat([['unit_id'],model_metric_names])),
@@ -1583,19 +1668,29 @@ class MainWindow(QtWidgets.QWidget):
 
         # save labels
         all_labels = pd.concat([
-            Y_training_raw,
-            pd.DataFrame(y_new, columns=['0'])
-        ])
-        all_labels['unit_index'] = all_labels.index
+            pd.DataFrame({label_column: y_corrected}),
+            pd.DataFrame({label_column: np.asarray(y_new, dtype=y_corrected.dtype)})
+        ], ignore_index=True)
+        all_labels.insert(0, 'unit_index', all_labels.index)
 
         retrained_model_folder.mkdir(exist_ok=True, parents=True)
         from sklearn.pipeline import Pipeline
         retrained_pipeline = Pipeline(
-            [("imputer", model_imputer), ("scaler", model_scaler), ("classifier", learner.estimator)]
+            [("imputer", model_imputer), ("scaler", model_scaler), ("classifier", retrained_classifier)]
         )
         dump(retrained_pipeline, retrained_model_folder / "best_model.skops")
         all_labels.to_csv(retrained_model_folder / 'labels.csv', index=False)
         all_training_data.to_csv(retrained_model_folder / 'training_data.csv', index=False)
+        if training_rows is not None:
+            # which round set the label of each row: none for the rows from training
+            label_from = training_rows['label_from'].tolist()
+            for row in changed_rows:
+                label_from[row] = retrained_model_name
+            pd.DataFrame({
+                'analyzer': training_rows['analyzer'].tolist() + [analyzer for analyzer, _ in new_rows_units],
+                'unit_id': training_rows['unit_id'].tolist() + [unit_id for _, unit_id in new_rows_units],
+                'label_from': label_from + [retrained_model_name] * len(new_rows_units),
+            }).to_csv(retrained_model_folder / TRAINING_UNITS_FILE, index=False)
 
         shutil.copyfile(model_folder / 'model_info.json', retrained_model_folder / 'model_info.json')
 
@@ -1609,8 +1704,7 @@ class MainWindow(QtWidgets.QWidget):
         self.project.model_paths = self.project.model_paths + [(retrained_model_folder, "local")]
 
         print(f"Successfully retrained model! Saved at {retrained_model_folder}.")
-        y_pred_test = learner.estimator.predict(X_test_proc)
-        held_out_balanced_accuracy = balanced_accuracy_score(y_test, y_pred_test)
+        held_out_balanced_accuracy = held_out_score(retrained_classifier)
         print(f"balanced accuracy (held-out test) = {held_out_before:.4f} without the relabelled units, "
               f"{held_out_balanced_accuracy:.4f} with them")
 
@@ -1620,13 +1714,16 @@ class MainWindow(QtWidgets.QWidget):
             model=retrained_model_name,
             selection=selection_key,
             num_training_units_before=int(len(y_training)),
+            num_new_units=len(y_new),
+            num_corrected_labels=len(changed_rows),
             num_same_as_original=num_same_as_original,
             num_not_in_classes=num_not_in_classes,
             num_already_learned=num_already_learned,
             held_out=dict(num_units=int(len(y_test)), before=float(held_out_before), after=float(held_out_balanced_accuracy)),
         ), added_unit_details)
 
-        return dict(name=retrained_model_name, num_units_added=len(y_new), held_out_balanced_accuracy=held_out_balanced_accuracy,
+        return dict(name=retrained_model_name, num_units_added=len(added_unit_details), num_new_units=len(y_new),
+                    num_corrected_labels=len(changed_rows), held_out_balanced_accuracy=held_out_balanced_accuracy,
                     held_out_before=held_out_before, num_held_out=int(len(y_test)), recordings=units_added)
 
     def show_curation_window(self, selected_directory, analyzer_index):
@@ -1671,6 +1768,7 @@ class MainWindow(QtWidgets.QWidget):
         self.sigui_window_shown = False
         self.sigui_cancelled = False
         self.sigui_output_buffer = ""
+        self.sigui_labels_backups = []
         self.sigui_last_message = "No message was printed."
         self.sigui_timing_key = timing_key
 
@@ -1693,6 +1791,9 @@ class MainWindow(QtWidgets.QWidget):
                 self.sigui_opening_dialog.set_step(line[len(SIGUI_STEP_MARKER):].strip())
             elif line.strip() == SIGUI_SHOWN_MARKER:
                 self.on_sigui_shown()
+            elif line.startswith(LABELS_BACKUP_MARKER):
+                backup, intended = line[len(LABELS_BACKUP_MARKER):].strip().split("|", 1)
+                self.sigui_labels_backups.append((backup, intended))
             else:
                 sys.stdout.write(line + "\n")
                 if line.strip() != "":
@@ -1731,6 +1832,13 @@ class MainWindow(QtWidgets.QWidget):
         self.content_widget.setEnabled(True)
         if self.sigui_window_shown:
             print("SpikeInterface-GUI closed, resuming main app.\n")
+        for backup, intended in self.sigui_labels_backups:
+            QtWidgets.QMessageBox.warning(
+                self, "Your labels were saved to a backup file",
+                f"Your labels could not be saved to {intended} (it is read-only or open in another program), so "
+                f"they were saved to:\n\n{backup}\n\nNothing is lost. Make {Path(intended).name} writable "
+                "(in File Explorer: right-click, Properties, untick 'Read-only'), then copy the backup file over it.",
+            )
         on_closed()
 
     def cancel_sigui(self):
