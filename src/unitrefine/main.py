@@ -201,7 +201,10 @@ def load_project(folder_name):
             project.config = json.load(f)
 
     analyzers_folder = folder_name / "analyzers"
-    analyzer_folders = list(analyzers_folder.glob('*/'))
+    # in the order they were added (by number: analyzer_10 after analyzer_9). The folders are listed in no
+    # particular order on Linux, and alphabetically on Windows
+    analyzer_folders = [folder for folder in analyzers_folder.glob('*/') if re.fullmatch(r"analyzer_\d+", folder.name)]
+    analyzer_folders.sort(key=lambda folder: int(folder.name.split('_')[1]))
 
     for analyzer_folder in analyzer_folders:
 
@@ -236,7 +239,7 @@ def load_project(folder_name):
         project.analyzers[int(str(analyzer_folder.name).split('_')[1])] = analyzer_dict
             
     models_folder = folder_name / "models"
-    model_folders = [folder for folder in list(models_folder.glob('*/')) if '.DS' not in str(folder)]
+    model_folders = sorted(folder for folder in models_folder.glob('*/') if '.DS' not in str(folder))
 
     for model_folder in model_folders:
         if (model_folder / "hfh_path.txt").is_file():

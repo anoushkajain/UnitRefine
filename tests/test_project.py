@@ -46,6 +46,20 @@ def test_a_new_analyzer_does_not_reuse_a_leftover_folder(project_copy, labelled_
     assert project.analyzers[8]["analyzer_in_project"].name == "analyzer_8"
 
 
+def test_analyzers_are_loaded_in_the_order_they_were_added(tmp_path, recordings):
+    """By number, whatever order the folders are listed in (any order on Linux, alphabetical on Windows)."""
+    project = UnitRefineProject(tmp_path / "project")
+    project.save()
+    for _ in range(12):
+        project.add_analyzer(str(recordings["new"]))
+    project.save()
+    # analyzer 1 is written last, so it is not listed first anywhere
+    (tmp_path / "project" / "analyzers" / "analyzer_1" / "path.txt").write_text(str(recordings["training"]))
+    loaded = load_project(tmp_path / "project")
+    assert list(loaded.analyzers) == list(range(12))
+    assert [analyzer["analyzer_in_project"] for analyzer in loaded.analyzers.values()] == [f"analyzers/analyzer_{index}" for index in range(12)]
+
+
 def test_removing_an_analyzer_asks_first(project_copy, labelled_project, qapp, monkeypatch):
     folder = project_copy(labelled_project)
     window = MainWindow(load_project(folder))
