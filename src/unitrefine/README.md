@@ -166,9 +166,12 @@ Active learning: label the units the model is least sure about, which improves i
 
 **4.1** Set the number of units to relabel, and click **Find least confident units**. They are picked across all
    your analyzers, from the units you have not labelled yet, using the models chosen in 3.2.
+   
 **4.2** Click **Relabel** on each analyzer to label its picked units in the SpikeInterface-GUI.
+
 **4.3** Choose the model to retrain and click **Retrain**. The new model is saved as e.g.
    `model_1_retrained_01`, then `model_1_retrained_02`, and so on.
+   
 **4.4** The retraining history shows each round.
 
 Repeat for a few rounds, and stop when the *Accuracy over rounds* figure levels off.
