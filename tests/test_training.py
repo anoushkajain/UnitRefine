@@ -57,6 +57,15 @@ def test_the_units_trained_on_are_recorded(trained_project, recordings, task):
     assert set(training_units["analyzer"]) == {str(recordings["training"])}
 
 
+def test_applying_a_model_does_not_change_the_analyzer(trained_project, recordings):
+    """The predictions are saved in UnitRefine's csv files: nothing is written to the analyzer, which can be on s3,
+    where it can't be written to."""
+    analyzer = si.load_sorting_analyzer(recordings["new"], load_extensions=False)
+    properties = set(analyzer.sorting.get_property_keys())
+    get_predictions(analyzer, "binary", [model_folder(trained_project, "sua_vs_all")])
+    assert set(analyzer.sorting.get_property_keys()) == properties
+
+
 def test_a_model_applies_to_a_new_recording(trained_project, recordings):
     analyzer = si.load_sorting_analyzer(recordings["new"], load_extensions=False)
     folder = model_folder(trained_project, "sua_vs_all")

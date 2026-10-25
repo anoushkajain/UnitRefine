@@ -1,0 +1,87 @@
+name: Publish to PyPI
+
+# Publishes UnitRefine with PyPI's trusted publishing: no password or token is stored in the repository
+# (see docs/releasing.md for setting it up, and the steps of a release).
+#   - run by hand (Actions > Publish to PyPI > Run workflow): publishes to TestPyPI, to try a release
+#   - publishing a GitHub release (tag e.g. v0.2.0): publishes to PyPI
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and check the packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+
+      - name: Check that the release tag is the version in pyproject.toml
+        if: github.event_name == 'release'
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          tag="${{ github.event.release.tag_name }}"
+          if [ "${tag#v}" != "$version" ]; then
+            echo "The release tag $tag is not the version in pyproject.toml ($version): change one of them."
+            exit 1
+          fi
+
+      - name: Build
+        run: uv build
+
+      - name: Check the packages (e.g. that the README shows on PyPI)
+        run: uvx twine check --strict dist/*
+
+      - name: Install the package without the GUI, as from PyPI, and run its command
+        run: |
+          uv venv /tmp/installed
+          uv pip install --python /tmp/installed dist/*.whl
+          /tmp/installed/bin/unitrefine-apply --version
+          /tmp/installed/bin/unitrefine-download-models
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: dist/
+
+  testpypi:
+    name: Publish to TestPyPI
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/unitrefine/
+    permissions:
+      # for trusted publishing
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  pypi:
+    name: Publish to PyPI
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/unitrefine/
+    permissions:
+      # for trusted publishing
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

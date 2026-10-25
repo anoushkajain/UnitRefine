@@ -162,6 +162,21 @@ def test_only_the_missing_metrics_are_computed(trained_project, recordings, tmp_
         assert np.allclose(before[column].astype(float), after[column].astype(float), equal_nan=True), column
 
 
+def test_metrics_with_the_names_from_before_spikeinterface_0_103_2_count(trained_project, recordings, monkeypatch):
+    """Analyzers made with an older SpikeInterface name some template metrics differently (e.g. peak_to_valley for
+    peak_to_trough_duration). The models accept these, so they aren't computed again."""
+    from unitrefine import metrics
+    from unitrefine.import_labels import compute_all_metrics
+    from unitrefine.predictions import RENAMED_TEMPLATE_METRICS
+
+    analyzer = si.load_sorting_analyzer(recordings["new"], load_extensions=False)
+    old_names = {new_name: old_name for old_name, (new_name, _) in RENAMED_TEMPLATE_METRICS.items()}
+    with_old_names = compute_all_metrics(analyzer).rename(columns=old_names)
+    assert "peak_to_valley" in with_old_names.columns
+    monkeypatch.setattr(metrics, "compute_all_metrics", lambda analyzer: with_old_names)
+    assert metrics.metrics_to_compute(analyzer, [models(trained_project) / SUA_VS_ALL]) == {}
+
+
 def test_extensions_deleted_by_computing_waveforms_are_computed_again(tmp_path):
     """The PCA metrics need waveforms, and computing them makes SpikeInterface delete the templates and the
     template metrics: these come back, with the same values."""

@@ -32,6 +32,14 @@ hfh_model_groups = [
 ]
 
 
+# downloaded into every new project (unless unitrefine is started with --no_pretrained_models), so models can be
+# applied straight away: the first two as a cascade (good / MUA / noise), the third on its own (SUA or not)
+DEFAULT_MODELS = [
+    "SpikeInterface/UnitRefine_noise_neural_classifier",
+    "SpikeInterface/UnitRefine_sua_mua_classifier",
+    "AnoushkaJain3/UnitRefine-generalized-sua-classifier",
+]
+
 # the file in a downloaded model's folder which says which Hugging Face repo it came from
 HFH_PATH_FILE = "hfh_path.txt"
 
@@ -89,3 +97,22 @@ def download_model(repo_id, model_directory):
         # don't leave a half-downloaded model behind
         shutil.rmtree(model_directory, ignore_errors=True)
         raise
+
+
+def download_default_models(models_folder, repo_ids=DEFAULT_MODELS):
+    """
+    Downloads the default models into `models_folder` (a new project's models folder), each into a folder named
+    after its repo. Models already there are kept. Returns the repo ids which could not be downloaded, with the
+    reason, e.g. no internet: {repo id: message}.
+    """
+    failed = {}
+    for repo_id in repo_ids:
+        model_directory = Path(models_folder) / repo_id.split("/")[-1]
+        if model_directory.is_dir():
+            continue
+        try:
+            download_model(repo_id, model_directory)
+        except Exception as error:
+            print(f"Could not download {repo_id}: {error}")
+            failed[repo_id] = str(error)
+    return failed

@@ -24,7 +24,7 @@ from PyQt5.QtCore import QCoreApplication, QEvent, Qt
 from PyQt5.QtGui import QFontDatabase, QIcon, QPixmap
 from PyQt5.QtWidgets import QStyleFactory
 
-from unitrefine import theme
+from unitrefine import __version__, theme
 
 RESOURCES_FOLDER = Path(__file__).absolute().parent / "resources"
 
@@ -33,6 +33,8 @@ STARTUP_STEPS = [
     "Loading the project",
     "Building the window and loading the saved figures",
 ]
+# for a new project, after loading it
+DOWNLOAD_STEP = "Downloading the pretrained models (about 30 MB)"
 
 
 def enable_high_dpi_scaling():
@@ -70,11 +72,12 @@ def set_app_font(app):
 class StartupDialog(QtWidgets.QWidget):
     """The 'Opening UnitRefine' box: the steps of opening, which is done, and the time so far."""
 
-    def __init__(self, project_folder):
+    def __init__(self, project_folder, steps=STARTUP_STEPS):
         super().__init__(None, Qt.SplashScreen | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.start_time = time.time()
         self.current_step = -1
+        self.steps = steps
 
         outer_layout = QtWidgets.QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -106,14 +109,14 @@ class StartupDialog(QtWidgets.QWidget):
         layout.addLayout(header_layout)
 
         self.step_labels = []
-        for step_text in STARTUP_STEPS:
+        for step_text in self.steps:
             step_label = QtWidgets.QLabel()
             step_label.setTextFormat(Qt.TextFormat.RichText)
             layout.addWidget(step_label)
             self.step_labels.append(step_label)
 
         self.progress_bar = QtWidgets.QProgressBar()
-        self.progress_bar.setRange(0, len(STARTUP_STEPS))
+        self.progress_bar.setRange(0, len(self.steps))
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(8)
         layout.addWidget(self.progress_bar)
@@ -130,7 +133,7 @@ class StartupDialog(QtWidgets.QWidget):
         self.update_display()
 
     def update_display(self):
-        for index, (step_text, step_label) in enumerate(zip(STARTUP_STEPS, self.step_labels)):
+        for index, (step_text, step_label) in enumerate(zip(self.steps, self.step_labels)):
             if index < self.current_step:
                 step_label.setText(f"<span style='color:{theme.SUCCESS}'>✓</span>&nbsp; {step_text}")
                 step_label.setStyleSheet(f"color: {theme.MUTED};")
@@ -157,8 +160,16 @@ def main():
         required=True,
         type=str,
     )
+    parser.add_argument("--no_pretrained_models", action="store_true",
+                        help="don't download the pretrained models into a new project (they can be added later "
+                             "with + Load from HFH)")
+    parser.add_argument("--version", action="version", version=f"unitrefine {__version__}")
     args = parser.parse_args()
     project_folder = Path(args.project_folder).resolve()
+    new_project = not project_folder.is_dir()
+    # a new project comes with the pretrained models, so they can be applied straight away
+    download_models = new_project and not args.no_pretrained_models
+    steps = STARTUP_STEPS[:2] + ([DOWNLOAD_STEP] if download_models else []) + STARTUP_STEPS[2:]
 
     enable_high_dpi_scaling()
     app = QtWidgets.QApplication(sys.argv)
@@ -169,14 +180,14 @@ def main():
         app.setWindowIcon(QIcon(str(icon_file)))
     set_app_font(app)
 
-    startup = StartupDialog(project_folder)
+    startup = StartupDialog(project_folder, steps)
     startup.show()
     startup.set_step(0)
 
     from unitrefine.main import APP_DESCRIPTION, MainWindow, UnitRefineProject, initial_window_size, load_project
 
     startup.set_step(1)
-    if project_folder.is_dir():
+    if not new_project:
         print("Project already exists. Loading...")
         project = load_project(project_folder)
     else:
@@ -184,17 +195,44 @@ def main():
         project = UnitRefineProject(project_folder)
         project.save()
 
-    startup.set_step(2)
+    not_downloaded = {}
+    if download_models:
+        from unitrefine.models_hub import download_default_models
+
+        startup.set_step(2)
+        print("Downloading the pretrained models...")
+        not_downloaded = download_default_models(project_folder / "models")
+        # load it again, with the models
+        project = load_project(project_folder)
+
+    startup.set_step(len(steps) - 1)
     window = MainWindow(project)
     window.setWindowTitle(f"UnitRefine: {APP_DESCRIPTION}")
     window.resize(initial_window_size(app.primaryScreen().availableGeometry()))
+    if download_models:
+        choose_pretrained_cascade(window)
     window.finish_loading()
 
-    startup.set_step(len(STARTUP_STEPS))
+    startup.set_step(len(steps))
     window.show()
     QtWidgets.QApplication.processEvents()
     startup.close()
+    if len(not_downloaded) > 0:
+        QtWidgets.QMessageBox.information(
+            window, "Pretrained models not downloaded",
+            "These pretrained models could not be downloaded (is the computer connected to the internet?):\n"
+            + "\n".join(f"• {repo_id}" for repo_id in not_downloaded)
+            + "\n\nYou can add them later with + Load from HFH in section 3.1.")
     app.exec()
+
+
+def choose_pretrained_cascade(window):
+    """In a new project, chooses the pretrained noise vs neural and SUA vs MUA models as a cascade (section 3.2)."""
+    selector = window.model_selector
+    selector.cascade_radio.setChecked(True)
+    if selector.describe_problem() is not None:
+        # e.g. one of them could not be downloaded
+        selector.binary_radio.setChecked(True)
 
 
 if __name__ == "__main__":

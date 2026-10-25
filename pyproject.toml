@@ -1,6 +1,6 @@
 [project]
 name = "unitrefine"
-version = "0.1"
+version = "0.2.0"
 description = "UnitRefine is a machine-learning toolbox that simplifies spike sorting curation by reducing manual curation."
 authors = [
     { name = "Anoushka Jain", email = "jain.anoushka3@gmail.com" },
@@ -8,7 +8,19 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["spike sorting", "curation", "electrophysiology", "machine learning", "neuropixels", "spikeinterface"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
 # what applying models needs, also without a screen, e.g. on a computing cluster (unitrefine-apply, see docs/hpc.md)
 dependencies = [
     "numcodecs==0.15.1",
@@ -37,17 +49,26 @@ gui = [
     "shap>=0.49.1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/anoushkajain/UnitRefine"
+Documentation = "https://github.com/anoushkajain/UnitRefine#readme"
+Issues = "https://github.com/anoushkajain/UnitRefine/issues"
+Preprint = "https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2"
+Models = "https://huggingface.co/AnoushkaJain3"
+
 [build-system]
-requires = ["setuptools>=62.0"]
+# 77: the license as `license = "MIT"`
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["unitrefine"]
+# resources holds the images and fonts used by the GUI
+packages = ["unitrefine", "unitrefine.resources", "unitrefine.resources.fonts"]
 package-dir = {"unitrefine" = "src/unitrefine"}
 
 [tool.setuptools.package-data]
-# images and fonts used by the GUI
-unitrefine = ["resources/*", "resources/fonts/*"]
+"unitrefine.resources" = ["*"]
+"unitrefine.resources.fonts" = ["*"]
 
 [project.scripts]
 unitrefine = "unitrefine.launcher:main"

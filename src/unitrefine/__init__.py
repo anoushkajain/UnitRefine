@@ -1,3 +1,12 @@
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    # the version in pyproject.toml, e.g. to say which version a problem was found with
+    __version__ = version("unitrefine")
+except PackageNotFoundError:
+    # run from the source folder without installing it
+    __version__ = "unknown"
+
 # The SpikeInterface-GUI scripts run in their own process. They print these markers so the main
 # window can show which step they are on while they open, and when their window is shown.
 SIGUI_SHOWN_MARKER = "UNITREFINE_SIGUI_WINDOW_SHOWN"
