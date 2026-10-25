@@ -1,5 +1,7 @@
 # UnitRefine: a community toolbox for automated spike sorting curation
 
+[![PyPI](https://img.shields.io/pypi/v/unitrefine)](https://pypi.org/project/unitrefine/)
+[![Python](https://img.shields.io/pypi/pyversions/unitrefine)](https://pypi.org/project/unitrefine/)
 [![Tests](https://github.com/anoushkajain/UnitRefine/actions/workflows/tests.yml/badge.svg)](https://github.com/anoushkajain/UnitRefine/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/anoushkajain/UnitRefine/blob/main/LICENSE)
 
@@ -54,7 +56,7 @@ UnitRefine was trained and tested on these datasets ([more models](https://huggi
 | Dataset | Species | Probe | Spike sorter |
 |---------|---------|-------|--------------|
 | UnitRefine base dataset | Mouse | Neuropixels 1.0 | Kilosort 2.5 |
-| International Brain Laboratory | Mouse | Neuropixels 1.0 | IBL sorter (PyKilosort 2.5) |
+| International Brain Laboratory (Witten Lab) | Mouse | Neuropixels 1.0 | IBL sorter (PyKilosort 2.5) |
 | Allen Institute | Mouse | Neuropixels 2.0 | Kilosort 4 |
 | [Shirdhankar et al., 2025](https://doi.org/10.64898/2025.12.15.693140) | Naked mole rat | Neuropixels 2.0 | Kilosort 4 |
 | [Chen et al., 2022](https://www.nature.com/articles/s41597-022-01180-1) | Rhesus macaque | Utah array | Kilosort 4 |
