@@ -4,6 +4,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/unitrefine)](https://pypi.org/project/unitrefine/)
 [![Tests](https://github.com/anoushkajain/UnitRefine/actions/workflows/tests.yml/badge.svg)](https://github.com/anoushkajain/UnitRefine/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/anoushkajain/UnitRefine/blob/main/LICENSE)
+[![DOI](https://img.shields.io/badge/DOI-10.1101%2F2025.03.30.645770-blue)](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2)
 
 **UnitRefine** labels spike sorted units as **single units (SUA)**, **multi-units (MUA)** or **noise** with machine
 learning classifiers trained on human curation, so you don't have to curate every unit by hand. It works with any
@@ -51,17 +52,19 @@ A new project downloads these three models from the Hugging Face Hub:
 | [noise vs neural](https://huggingface.co/SpikeInterface/UnitRefine_noise_neural_classifier) + [SUA vs MUA](https://huggingface.co/SpikeInterface/UnitRefine_sua_mua_classifier), used together as a cascade | good (SUA), MUA, noise |
 | [generalized SUA classifier](https://huggingface.co/AnoushkaJain3/UnitRefine-generalized-sua-classifier) | SUA, not SUA |
 
-UnitRefine was trained and tested on these datasets ([more models](https://huggingface.co/AnoushkaJain3)):
+UnitRefine was trained and tested on the following datasets. The [generalized SUA classifier](https://huggingface.co/AnoushkaJain3/UnitRefine-generalized-sua-classifier)
+was trained on all of them; the other models on the datasets of one species:
 
-| Dataset | Species | Probe | Spike sorter |
-|---------|---------|-------|--------------|
-| UnitRefine base dataset | Mouse | Neuropixels 1.0 | Kilosort 2.5 |
-| International Brain Laboratory (Witten Lab) | Mouse | Neuropixels 1.0 | IBL sorter (PyKilosort 2.5) |
-| Allen Institute | Mouse | Neuropixels 2.0 | Kilosort 4 |
-| [Shirdhankar et al., 2025](https://doi.org/10.64898/2025.12.15.693140) | Naked mole rat | Neuropixels 2.0 | Kilosort 4 |
-| [Chen et al., 2022](https://www.nature.com/articles/s41597-022-01180-1) | Rhesus macaque | Utah array | Kilosort 4 |
-| [Gerken et al., 2025](https://elifesciences.org/reviewed-preprints/106758) | Human | Behnke–Fried electrodes | Combinato |
-The curated datasets are on [figshare](https://figshare.com/articles/dataset/Curated_dataset/28282799).
+| Dataset | Species | Probe | Spike sorter | Models |
+|---------|---------|-------|--------------|--------|
+| UnitRefine base dataset | Mouse | Neuropixels 1.0 | Kilosort 2.5 | [noise vs neural](https://huggingface.co/SpikeInterface/UnitRefine_noise_neural_classifier), [SUA vs MUA](https://huggingface.co/SpikeInterface/UnitRefine_sua_mua_classifier), [mouse SUA](https://huggingface.co/AnoushkaJain3/UnitRefine-mice-sua-classifier) |
+| International Brain Laboratory (Witten Lab) | Mouse | Neuropixels 1.0 | IBL sorter (PyKilosort 2.5) | [mouse SUA](https://huggingface.co/AnoushkaJain3/UnitRefine-mice-sua-classifier) |
+| Allen Institute | Mouse | Neuropixels 2.0 | Kilosort 4 | [mouse SUA](https://huggingface.co/AnoushkaJain3/UnitRefine-mice-sua-classifier) |
+| [Shirdhankar et al., 2025](https://doi.org/10.64898/2025.12.15.693140) | Naked mole rat | Neuropixels 2.0 | Kilosort 4 | [mole rat SUA](https://huggingface.co/AnoushkaJain3/UnitRefine-mole-rat-sua-classifier) |
+| [Chen et al., 2022](https://www.nature.com/articles/s41597-022-01180-1) | Rhesus macaque | Utah array | Kilosort 4 | [monkey SUA](https://huggingface.co/AnoushkaJain3/UnitRefine-monkey-sua-classifier) |
+| [Gerken et al., 2025](https://elifesciences.org/reviewed-preprints/106758) | Human | Behnke–Fried electrodes | Combinato | [human SUA](https://huggingface.co/AnoushkaJain3/UnitRefine-human-sua-classifier) |
+
+All models are on the [Hugging Face Hub](https://huggingface.co/AnoushkaJain3), and the curated datasets are on [figshare](https://figshare.com/articles/dataset/Curated_dataset/28282799).
 
 ## Installation
 

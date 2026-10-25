@@ -1,9 +1,9 @@
 name: Publish to PyPI
 
-# Publishes UnitRefine with PyPI's trusted publishing: no password or token is stored in the repository
-# (see docs/releasing.md for setting it up, and the steps of a release).
+# Publishes UnitRefine with PyPI's trusted publishing: no password or token is stored in the repository.
+# To release: set the version in pyproject.toml and run `uv lock`, then
 #   - run by hand (Actions > Publish to PyPI > Run workflow): publishes to TestPyPI, to try a release
-#   - publishing a GitHub release (tag e.g. v0.2.0): publishes to PyPI
+#   - publishing a GitHub release (tag: v + the version, e.g. v0.2.0): publishes to PyPI
 on:
   release:
     types: [published]
