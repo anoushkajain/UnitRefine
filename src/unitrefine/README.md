@@ -1,154 +1,189 @@
-## Tutorial: Using the UnitRefine GUI
+# UnitRefine GUI tutorial
 
-## Installation
+This tutorial goes through the UnitRefine window section by section: label your units with the pretrained models,
+train your own model, improve it by relabelling the units it is least sure about, and share it.
 
-1. To use our GUI, [Install uv](https://docs.astral.sh/uv/getting-started/installation/), the modern python package manager.<br>
-(Note for Windows users: If you have issues installing uv, please check out the FAQ section.)
+- [Install and open UnitRefine](#install-and-open-unitrefine)
+- [Example data](#example-data)
+- [1. Project](#1-project)
+- [2. Label your units and train a model](#2-label-your-units-and-train-a-model)
+- [3. Apply models](#3-apply-models)
+- [4. Improve the model: relabel and retrain](#4-improve-the-model-relabel-and-retrain)
+- [5. Share your model](#5-share-your-model)
+- [Questions](#questions)
 
-2. Use Git (https://git-scm.com/install) to clone the UnitRefine repository and move into the repo folder to launch the GUI.
+## Install and open UnitRefine
+
+Install UnitRefine with its GUI (other ways are described in
+[Installation](https://github.com/anoushkajain/UnitRefine/blob/main/docs/installation.md)):
 
 ```bash
-git clone https://github.com/anoushkajain/UnitRefine.git
-cd UnitRefine
-``` 
-  
----
-## Launching the GUI
+conda create -n unitrefine python=3.13
+conda activate unitrefine
+pip install uv
+uv pip install "unitrefine[gui]"
+```
 
-Open UnitRefine and create a new project.
+Open UnitRefine with a project folder:
 
 ```bash
-uv run unitrefine --project_folder my_new_project
-``` 
-(Note: you must be in the UnitRefine folder that you've cloned from Github when you run this command.)
+unitrefine --project_folder my_project
+```
 
-A window should pop up that looks something like this:
+A new folder becomes a new project. The next time, give the same folder and everything you did is opened again.
+A new project downloads three pretrained models from the Hugging Face Hub (about 30 MB). To start without them,
+add `--no_pretrained_models`.
 
 <p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/unitrefine_gui.JPG" width="500"/>
+  <img src="https://raw.githubusercontent.com/anoushkajain/UnitRefine/main/docs/images/gui_window.png" width="700"/>
 </p>
 
+The window has five sections. Click a section's title to open or fold it. A new project opens with section 3, where
+most people start. Keep an eye on the terminal: UnitRefine prints what it is doing there.
 
-To use the GUI, you need a recording in form of a [Sorting Analyzer](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html) object.
-If your data is saved in a different format and you want to train and apply a model based on an existing set of metrics, you can check out our tutorial notebooks [here](https://github.com/anoushkajain/UnitRefine/tree/main/UnitRefine/tutorial).
+## Example data
 
-To test the GUI, you can also download a precomputed Sorting Analyzer from [here](https://drive.google.com/file/d/1TynO9qXTXm_IKRGtuOb8rCd-S0Zhza0I/view?usp=sharing). Just download the .zip file and uncompress it. Then load the contained folder "sorting_analyzer_folder" directly into the GUI using the "Load Analyzer folder" button (recommended). 
+UnitRefine works on [Sorting Analyzers](https://spikeinterface.readthedocs.io/en/stable/tutorials/core/plot_4_sorting_analyzer.html)
+from SpikeInterface, or on Kilosort output curated in Phy (UnitRefine makes the analyzer for you).
 
-Alternatively, you can load an example Allen Institute dataset by selecting “Add Analyzer from S3” and pasting:
+To try it, use **+ Analyzer from s3** and paste this public recording from the Allen Institute:
 
-```bash
+```
 s3://aind-open-data/ecephys_820459_2025-11-10_15-07-13_sorted_2025-11-22_08-46-30/postprocessed/experiment1_Record Node 101#Neuropix-PXI-100.ProbeA-AP_recording1.zarr
 ```
 
-Once you see the message **“Successfully added analyzer”** in your terminal, the dataset has been loaded correctly.
+Or download a [precomputed Sorting Analyzer](https://drive.google.com/file/d/1TynO9qXTXm_IKRGtuOb8rCd-S0Zhza0I/view?usp=sharing),
+unzip it, and add the folder `sorting_analyzer_folder` with **+ Sorting Analyzer folder**.
 
-Now, click the **Curate** button as shown below to open the SpikeInterface GUI and curate the spike-sorted clusters.
-<p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/curation_gui.jpg" width="500"/>
-</p>
-Note: It may take some time for data to download and the SpikeInterface GUI to launch. While it is open, the UnitRefine GUI may appear unresponsive in the current version. Just be patient until the data is loaded and remember to close the SpikeInterface GUI before returning to the UnitRefine GUI.
-<p></p>
+If you only have a table of metrics, not an analyzer, see the
+[tutorial notebooks](https://github.com/anoushkajain/UnitRefine/blob/main/docs/tutorials.md).
 
-During curation in SpikeInterface GU, units can be relabeled using the keyboard shortcuts:
+## 1. Project
 
-- **`n`** → noise  
-- **`g`** → good (SUA)  
-- **`m`** → MUA
- 
-You can also navigate between units using Ctr + up/down arrows.
-Once you have finished labeling some units, close the SpikeInterface GUI. Your labels are automatically saved in the project folder.
-To train a model, you should label at least around 10% of the clusters in the recording to achieve decent prediction accuracy.
+Shows the project's folders (with **Open** buttons), the labels used (good, MUA, noise) and how many analyzers,
+labels and models the project has. Everything UnitRefine makes is saved in the project folder:
 
-Here is an example of what the SpikeInterface GUI looks like with labeled units:
-<p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/si-gui.JPG" width="500"/>
-</p>
+- `analyzers/`: your labels and the models' predictions for each analyzer, as `.csv` files
+- `models/`: the models you trained or downloaded
+- `figures/`: the figures shown in each section
 
-## Train a model
-
-Click the Train button to train a model using your curated dataset.
-<p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/train_and_load_gui.JPG" width="500"/>
-</p>
-
-This will bring up a dialog to select the model type and pre-processing method. Our results from testing different models are described in the [UnitRefine paper](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2.full) but for most dataset, the default settings (random forest classifer with nearest-neighbor imputation and standard scaler) should work well and can be trained very quickly. Click "Train models" to start training.
+## 2. Label your units and train a model
 
 <p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/model_training_example.jpg" width="500"/>
+  <img src="https://raw.githubusercontent.com/anoushkajain/UnitRefine/main/docs/images/gui_section2_label_and_train.png" width="700"/>
 </p>
 
-In the terminal, you will see logs from model training, for example:
-```bash
-Running RandomForestClassifier with imputation knn and scaling StandardScaler()
-    Balanced Accuray: 
-    Precision: 
-    Recall: 
-```
-If your balanced accuracy is above 75%, your labeling is generally consistent and reliable. You can inspect the model output with the "Inspect" button.
-If balanced accuracy is lower, we recommend relabeling the cluster and retraining the model to improve results. You can simply use the "Curate" button again to label additional clusters and train a new model to check if this improves the performance.
+**Add your recordings.** Use **+ Sorting Analyzer folder**, **+ Analyzer from s3** or **+ Phy output**. Each one
+appears as a row.
 
-Alternatively, you can use retraining with active learning to automatically identify clusters with low model prediction confidence. This enhances the re-training efficency by selectively providing training data for clusters that the model can not predict already. You can set the percentage of clusters that should be staged for labeling (default is 20%) and press the "Relabel" button to curate low-confidence clusters.
+**Label their units.** Either:
+
+- **Curate** opens the recording in the [SpikeInterface-GUI](https://github.com/SpikeInterface/spikeinterface-gui/).
+  Label units with the keys **g** (good, SUA), **m** (MUA) and **n** (noise), and move between units with
+  **Ctrl + up/down**. Close the SpikeInterface-GUI when you are done: your labels are saved in the project.
+  Opening a recording, especially from s3, can take a while, and the UnitRefine window waits until you close the
+  SpikeInterface-GUI.
+- **+ Import labels** reads labels you already have: Phy (`cluster_group.tsv`, `cluster_info.tsv`), SortingView
+  (`.json`), SpikeInterface curation (`.json`), or a `.csv`/`.tsv` with `unit_id` and `quality` columns. Labels good,
+  MUA and noise are used; others (e.g. unsorted) are skipped.
+- **+ Phy output** adds a Kilosort output folder curated in Phy. UnitRefine makes an analyzer from Phy's units and
+  the recording Kilosort sorted (this takes a few minutes), saves it next to the Phy folder, and imports the labels
+  you set in Phy. If the Phy folder was made from a SpikeInterface analyzer (with `export_to_phy`), no new analyzer
+  is made: Phy's merges and splits are applied to that analyzer.
 
 <p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/re-label.JPG" width="500"/>
+  <img src="https://raw.githubusercontent.com/anoushkajain/UnitRefine/main/src/unitrefine/resources/si-gui.JPG" width="500"/>
 </p>
 
-After curation, press the "Retrain model" button to train a new model that includes the additional low-confidence labels. This model will be saved under a new name, e.g. model_1_retrained_01. You can repeat relabeling and retraining as often as you want. Each step will increase the number of available labels and create a new model version (labeld model_1_retrained_02, etc) until a strong model has been found. In our experience model the performance should clearly improve when labeling about 10% of the curated clusters and the total number of curated clusters should be at least 50 or more. Once you have a trained model with good balanced accuracy you can use it create cluster labels for any recording.
+Label at least about 10% of the units, and more than 50 in total, for a first model with decent performance.
 
-## Loading Your Model
+**Train a model.** **Train a model** opens a window where you choose:
 
-To make cluster predictions on any new or already loaded recording, you can use your trained models, load any existing model from your local drive or use a pretrained online model. All models that you trained in the current project are already available in the drop-down menu. 
+- **Which models to train:**
+  - *SUA vs all*: good against everything else (MUA and noise become `not-sua`)
+  - *Noise vs Neural* and *SUA vs MUA*: two models which together form a cascade, giving good, MUA or noise
+- **Which metrics:** all available, or only the spike times, quality or template metrics
+- **How to train them:** the classifier, scaler and imputer. The defaults (random forest, standard scaler,
+  nearest-neighbour imputation) work well for most recordings and train quickly. If you tick more, each combination
+  is trained and the best one is kept, which takes longer.
+- **Test size:** the share of your labels held out to test the model (0.2 by default)
+
+Click **Train models**. The models are saved in `models/` and appear in section 3. The terminal shows each model's
+balanced accuracy on the held-out units: above about 75% means your labels are consistent. If it is lower, label more
+units, or use section 4.
+
+The figures below the list show your labels, the metrics of each label, and how each model does on the held-out
+units. Click a figure to see it bigger.
+
+## 3. Apply models
 
 <p align="center">
-  <img src="https://github.com/anoushkajain/UnitRefine/blob/main/src/unitrefine/resources/predict-gui.JPG" width="500"/>
+  <img src="https://raw.githubusercontent.com/anoushkajain/UnitRefine/main/docs/images/gui_section3_apply.png" width="700"/>
 </p>
 
-Use the '+ Load' button to additional models by selecting their respective folders, e.g. from a different project.  
+**3.1 Load models.** Models you trained in section 2, and the pretrained models of a new project, are already here.
 
-Use the '+ Load from HFH' button to load a pretrained model from the Hugging Face Hub (HFH).
-For example use the path below for a model that was trained on mouse Neuropixels recordings in diverse brain regions:
+- **+ Load** adds a model folder from your computer, e.g. from another project.
+- **+ Load from HFH** downloads a model from the Hugging Face Hub, e.g. `AnoushkaJain3/UnitRefine-mice-sua-classifier`.
+  See [all UnitRefine models](https://huggingface.co/AnoushkaJain3).
+- **Manage models** shows the labels each model was trained on, and deletes models.
 
-```bash
-AnoushkaJain3/UnitRefine-mice-sua-classifier
-```
-You can find a collection of the existing pre-trained models [here](https://huggingface.co/AnoushkaJain3).
-These contain all models from different species and recording settings that were used in the [UnitRefine paper](https://www.biorxiv.org/content/10.1101/2025.03.30.645770v2.full). When using a pre-trained binary classifier that predicts clusters as "good" versus "not-sua" (such as the UnitRefine-mice-sua-classifier), both "MUA" and "Noise" labels from manual curation will be automatically combined into "not-sua".
+The pretrained models of a new project:
 
-After selecting a model, use the "Inspect" button to check the predicted labels for each loaded recording. 
-The model predictions are saved in the project folder under: `analyzer_folder/labels_from_UnitRefine-mice-sua-classifier.csv`
+| Model | Labels |
+|-------|--------|
+| [noise vs neural](https://huggingface.co/SpikeInterface/UnitRefine_noise_neural_classifier) + [SUA vs MUA](https://huggingface.co/SpikeInterface/UnitRefine_sua_mua_classifier), as a cascade | good (SUA), MUA, noise |
+| [generalized SUA classifier](https://huggingface.co/AnoushkaJain3/UnitRefine-generalized-sua-classifier) | SUA, not SUA |
 
-You should see a good relation between the human-inferred cluster label and the model prediction in the column 'model'.
-You can also sort the list by model confidence to see high confidence clusters at the top. If high confidence clusters are incorrect or if you think the model needs overall improvement, you can relabel the units and retrain the model until the visual inspections confirms reliable prediction performance.
+**3.2 Choose your models.** Use one model, or a **cascade** of a noise vs neural model and a SUA vs MUA model, which
+labels each unit good, MUA or noise. A new project has the pretrained cascade chosen already. Tick several models to
+compare them on the same recordings.
 
-Lastly, use the 'Generate code' button at the bottom of the GUI to generate a short code segment in the console that you can use to automatically apply the model to a given recording as part of your analysis pipeline.
+**3.3 Apply models to get predictions and inspect.** Add the recordings you want labels for with
+**+ Sorting Analyzer folder** (one analyzer, or a folder with several), **+ Analyzer from s3** or **+ Phy output**.
+If a recording doesn't have all the metrics the models use, UnitRefine offers to compute them.
 
----
+- **Inspect** opens the recording in the SpikeInterface-GUI with each model's label and confidence for every unit.
+  Sort by confidence to check the units the model is least sure about.
+- **+ Import labels** (optional) adds your own labels for a recording, to compare them with the predictions.
 
-That is it! Now, you can know how to add sorting analyzers, curate the data, train a model, and validate its performance.  
-Keep an eye on the feedback printed in the terminal—it provides helpful guidance throughout the process.
+The predictions are saved in the project, e.g. `analyzers/analyzer_0/labels_from_<model>.csv`. The figures show the
+predicted labels, the confidence, and how the predictions compare with your labels.
 
-You can also generate Python code from the GUI and reuse it later in your own scripts.  
+When a model predicts `good` vs `not-sua`, your MUA and noise labels count as `not-sua` when they are compared.
 
-The next time you run **UnitRefine**, simply point to the same project folder and everything will be loaded automatically.
+**Generate code to apply the model(s) in a script** prints Python code to the terminal, to apply the chosen models
+in your own pipeline. To apply models to many recordings, e.g. on a computing cluster, use
+[`unitrefine-apply`](https://github.com/anoushkajain/UnitRefine/blob/main/docs/hpc.md).
 
-```bash
-uv run unitrefine --project_folder my_existing_project
-```
+## 4. Improve the model: relabel and retrain
 
----
-## FAQs
+<p align="center">
+  <img src="https://raw.githubusercontent.com/anoushkajain/UnitRefine/main/docs/images/gui_section4_relabel.png" width="700"/>
+</p>
 
-**1. Issues with installing UV**
+Active learning: label the units the model is least sure about, which improves it fastest.
 
-For windows users trying to install uv, try doing 
-```bash
-pip install uv
-```
-If this does not work, please follow the instructions on the uv [Windows installation page.](https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_2)
+1. **4.1** Set the number of units to relabel, and click **Find least confident units**. They are picked across all
+   your analyzers, from the units you have not labelled yet, using the models chosen in 3.2.
+2. **4.2** Click **Relabel** on each analyzer to label its picked units in the SpikeInterface-GUI.
+3. **4.3** Choose the model to retrain and click **Retrain**. The new model is saved as e.g.
+   `model_1_retrained_01`, then `model_1_retrained_02`, and so on.
+4. **4.4** The retraining history shows each round.
 
-**2. Number of labels**
+Repeat for a few rounds, and stop when the *Accuracy over rounds* figure levels off.
 
-You need to provide at least 6 labels for each used class (SUA, MUA, Noise) to prevent errors when training a new model. You can also use only SUA and Noise labels to create a binary instead of a 3-class classifier. As a starting model with decent performance you should label at least 10% of the data (should be more than 50 clusters in total).
+## 5. Share your model
 
-----
-If you identify other problems, leave an issue in the repository or reach out to us via email.
+Upload your model to the Hugging Face Hub so others can use it with **+ Load from HFH**: see the
+[SpikeInterface tutorial on uploading a model](https://spikeinterface.readthedocs.io/en/stable/tutorials/curation/plot_3_upload_a_model.html).
+
+## Questions
+
+**How many units should I label?** At least 6 for each label you use (good, MUA, noise), or training fails. For a
+first model with decent performance, label at least 10% of the units, and more than 50 in total. With only good and
+noise labels, train *SUA vs all*.
+
+**Installing fails.** See [Installation](https://github.com/anoushkajain/UnitRefine/blob/main/docs/installation.md#problems).
+
+If you find other problems, please [open an issue](https://github.com/anoushkajain/UnitRefine/issues).

@@ -139,7 +139,10 @@ def label_units_function():
 
 
 def predict(sorting_analyzer, model_folder):
-    decisions = label_units_function()(sorting_analyzer=sorting_analyzer, model_folder=model_folder, trust_model=True)
+    # the predictions are saved by UnitRefine (csv files), not as properties of the analyzer's units: that would write
+    # to the analyzer, which fails for one which can't be written to, e.g. on s3
+    decisions = label_units_function()(sorting_analyzer=sorting_analyzer, model_folder=model_folder, trust_model=True,
+                                       set_predictions_as_properties=False)
     return decisions.loc[sorting_analyzer.unit_ids]
 
 
@@ -344,6 +347,7 @@ def analyzer_output_names(analyzer_paths):
     """
     Short unique names for analyzers, used to name their output files. Analyzer folders often
     have the same name (e.g. sorting_analyzer), so parent folder names are added until they differ.
+    Names longer than MAX_OUTPUT_NAME_LENGTH (e.g. of analyzers on s3) are shortened.
     """
 
     paths = [Path(str(analyzer_path).rstrip("/\\")) for analyzer_path in analyzer_paths]
@@ -351,8 +355,20 @@ def analyzer_output_names(analyzer_paths):
     while True:
         names = ["_".join(path.parts[-depth:]).replace(":", "").replace("\\", "").replace("/", "") for path in paths]
         if len(set(names)) == len(names) or depth >= max(len(path.parts) for path in paths):
-            return names
+            return [shorten_output_name(name) for name in names]
         depth += 1
+
+
+# output file names also have the models' names in them: keep paths shorter than Windows allows (260 characters)
+MAX_OUTPUT_NAME_LENGTH = 60
+
+
+def shorten_output_name(name):
+    """A name of at most MAX_OUTPUT_NAME_LENGTH characters: the start of a longer one, and a code which keeps it unique."""
+    if len(name) <= MAX_OUTPUT_NAME_LENGTH:
+        return name
+    short_hash = hashlib.md5(name.encode()).hexdigest()[:8]
+    return f"{name[:MAX_OUTPUT_NAME_LENGTH - 9]}_{short_hash}"
 
 
 def apply_to_analyzers(analyzer_paths, mode, model_folders, key, output_folder, output_names=None,

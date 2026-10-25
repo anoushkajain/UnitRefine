@@ -1,0 +1,5 @@
+# What the source package (sdist) on PyPI contains besides src/unitrefine: the tests with their helpers, so they
+# can be run from it, but not the paper's notebooks, datasets and tutorials in UnitRefine/ (they are on GitHub)
+recursive-include tests *.py
+prune UnitRefine
+prune UnitRefine.egg-info

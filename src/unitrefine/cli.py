@@ -23,6 +23,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from unitrefine import __version__
 from unitrefine.models_hub import downloaded_repo_id, download_model, hfh_model_groups, looks_like_repo_id
 from unitrefine.predictions import (
     analyzer_output_names,
@@ -171,6 +172,7 @@ def apply_main(argv=None):
     )
     parser.add_argument("analyzers", nargs="+",
                         help="analyzer folders, folders with analyzers inside, or text files with one analyzer per line")
+    parser.add_argument("--version", action="version", version=f"unitrefine {__version__}")
     parser.add_argument("--model", action="append", default=[], dest="models",
                         help="a model folder or a Hugging Face repo id; give --model again for more models")
     parser.add_argument("--cascade", action="store_true",

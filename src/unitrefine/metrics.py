@@ -43,7 +43,10 @@ def metrics_to_compute(analyzer, model_folders):
     """
     from spikeinterface.metrics import ComputeQualityMetrics, ComputeTemplateMetrics
 
-    missing = required_metric_columns(model_folders) - set(compute_all_metrics(analyzer).columns)
+    columns = set(compute_all_metrics(analyzer).columns)
+    # metrics computed before SpikeInterface 0.103.2 have the old names (e.g. peak_to_valley), which models accept
+    columns |= {new_name for old_name, (new_name, _) in RENAMED_TEMPLATE_METRICS.items() if old_name in columns}
+    missing = required_metric_columns(model_folders) - columns
     to_compute = {}
     for extension in [ComputeQualityMetrics, ComputeTemplateMetrics]:
         for metric in extension.metric_list:

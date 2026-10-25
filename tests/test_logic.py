@@ -151,3 +151,18 @@ def test_labels_are_saved_normally(tmp_path):
     labels = pd.DataFrame({"quality": ["good"], "unit_id": [1]})
     assert save_labels_or_backup(labels, tmp_path / "labels.csv", index=False) == tmp_path / "labels.csv"
     assert pd.read_csv(tmp_path / "labels.csv").equals(labels)
+
+
+def test_analyzer_output_names_are_unique_and_short():
+    from unitrefine.predictions import MAX_OUTPUT_NAME_LENGTH, analyzer_output_names
+
+    s3_name = "experiment1_Record Node 101#Neuropix-PXI-100.ProbeA-AP_recording{}.zarr"
+    names = analyzer_output_names([
+        "C:/data/mouse1/sorting_analyzer", "C:/data/mouse2/sorting_analyzer",
+        f"s3://bucket/session/postprocessed/{s3_name.format(1)}", f"s3://bucket/session/postprocessed/{s3_name.format(2)}",
+    ])
+    # parent folders tell analyzers with the same name apart
+    assert names[:2] == ["mouse1_sorting_analyzer", "mouse2_sorting_analyzer"]
+    # long names (e.g. on s3) are shortened, so file paths stay short enough for Windows, and stay unique
+    assert all(len(name) <= MAX_OUTPUT_NAME_LENGTH for name in names) and len(set(names)) == 4
+    assert "experiment1_Record Node 101" in names[2]
