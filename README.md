@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/anoushkajain/UnitRefine/main/docs/images/unitrefine_logo.png" alt="UnitRefine" width="450"/>
+</p>
+
 # UnitRefine: a community toolbox for automated spike sorting curation
 
 [![PyPI](https://img.shields.io/pypi/v/unitrefine)](https://pypi.org/project/unitrefine/)
