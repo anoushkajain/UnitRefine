@@ -95,7 +95,12 @@ class StartupDialog(QtWidgets.QWidget):
         logo_file = RESOURCES_FOLDER / "logo.png"
         if logo_file.exists():
             logo = QtWidgets.QLabel()
-            logo.setPixmap(QPixmap(str(logo_file)).scaled(44, 44, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            # scaled for the screen's pixels, so it stays sharp with Windows display scaling (e.g. 150%)
+            pixel_ratio = self.devicePixelRatioF()
+            logo_size = round(44 * pixel_ratio)
+            pixmap = QPixmap(str(logo_file)).scaled(logo_size, logo_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap.setDevicePixelRatio(pixel_ratio)
+            logo.setPixmap(pixmap)
             header_layout.addWidget(logo)
         title_layout = QtWidgets.QVBoxLayout()
         title_layout.setSpacing(0)
