@@ -1612,8 +1612,11 @@ class MainWindow(QtWidgets.QWidget):
             return
 
         if result["status"] == "hard_merge_required":
-            if self.confirm("Merges need the raw recording", f"{result['message']}\n\nDo these merges? It can take a long time."):
-                self.run_phy_import(arguments + ["--allow_hard_merge"], steps, what, output_folder, for_training)
+            option = self.ask_about_hard_merges(result)
+            if option is None:
+                print("Cancelled: the Phy folder was not added.")
+            else:
+                self.run_phy_import(arguments + [option], steps, what, output_folder, for_training)
             return
         if result["status"] != "done":
             QtWidgets.QMessageBox.warning(self, "Could not add the Phy folder", result["message"])
@@ -1623,6 +1626,46 @@ class MainWindow(QtWidgets.QWidget):
         self.project.save_config()
         self.add_phy_analyzer(result, for_training)
 
+    def ask_about_hard_merges(self, result):
+        """
+        Some merges made in Phy can only be redone from the raw recording (a hard merge), because their units share
+        too few channels. Asks whether to leave these merged units out, or to use the raw recording if the analyzer
+        has it. Returns the option for phy_import, or None if cancelled.
+        """
+        merges = result.get("merges", [])
+        num_spikes = sum(merge["num_spikes"] for merge in merges)
+        total_spikes = max(result.get("total_spikes", 0), 1)
+        merge_lines = "\n".join(f"  {', '.join(str(u) for u in merge['unit_ids'])} → {merge['new_unit_id']} "
+                                f"({merge['num_spikes']} spikes)" for merge in merges[:15])
+        if len(merges) > 15:
+            merge_lines += f"\n  ... and {len(merges) - 15} more (the terminal shows all)"
+        text = (f"{len(merges)} units merged in Phy can only be made from the raw recording, because the units they "
+                f"merge share too few channels. They have {num_spikes} of the {total_spikes} spikes "
+                f"({100 * num_spikes / total_spikes:.2g}%):\n\n{merge_lines}\n\n"
+                "You can leave these units out: everything else is added as curated in Phy. ")
+        if result.get("has_recording"):
+            text += ("Or, as the analyzer's raw recording is available, the merges can be made from it, which can take "
+                     "a long time.")
+        else:
+            text += ("To include them, the merges would have to be made from the raw recording, which this analyzer "
+                     "can't find. Attach the recording to the analyzer and add the Phy folder again.")
+
+        box = QtWidgets.QMessageBox(self)
+        box.setIcon(QtWidgets.QMessageBox.Question)
+        box.setWindowTitle("Some merges need the raw recording")
+        box.setText(text)
+        leave_out_button = box.addButton("Leave them out", QtWidgets.QMessageBox.AcceptRole)
+        merge_button = None
+        if result.get("has_recording"):
+            merge_button = box.addButton("Merge from the raw recording", QtWidgets.QMessageBox.ActionRole)
+        box.addButton(QtWidgets.QMessageBox.Cancel)
+        box.setDefaultButton(leave_out_button)
+        box.exec_()
+        if box.clickedButton() is leave_out_button:
+            return "--leave_out_hard_merges"
+        if merge_button is not None and box.clickedButton() is merge_button:
+            return "--allow_hard_merge"
+        return None
     def add_phy_analyzer(self, result, for_training):
         """Adds the analyzer made from a Phy folder to section 2 or 3.3, and imports Phy's labels for it."""
         analyzer_path = result["analyzer"]
@@ -1667,6 +1710,11 @@ class MainWindow(QtWidgets.QWidget):
         has_labels = result["num_labels"] > 0
         labels_text = (f"{result['num_labels']} units have a label from Phy, which were imported."
                        if has_labels else "No units were labelled in Phy.")
+        left_out = result.get("left_out", [])
+        if left_out:
+            labels_text += (f"\n\n{len(left_out)} units merged in Phy were left out, because they need the raw "
+                            f"recording ({sum(m['num_spikes'] for m in left_out)} spikes). They are listed in "
+                            "made_from_phy.json in the analyzer folder.")
         print(f"Added {analyzer_path} to {where}. {labels_text}")
         QtWidgets.QMessageBox.information(self, "Phy folder added", f"The analyzer is added to {where}:\n{analyzer_path}\n\n{labels_text}")
 

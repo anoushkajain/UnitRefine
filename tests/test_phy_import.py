@@ -154,6 +154,21 @@ def test_exported_folder_with_a_merge_saves_the_curated_analyzer(exported, tmp_p
     assert labels_of(result) == {"8": "good", "3": "MUA"}
 
 
+def test_exported_folder_with_only_some_units_saves_the_curated_analyzer(exported, tmp_path):
+    # Phy didn't change any spikes, but the units that weren't exported must not stay in the analyzer
+    analyzer = si.load_sorting_analyzer(exported / "analyzer")
+    phy_folder = tmp_path / "phy"
+    export_to_phy(analyzer.select_units(analyzer.unit_ids[[1, 4, 6]]), phy_folder, compute_pc_features=False,
+                  compute_amplitudes=False, copy_binary=False, verbose=False)
+    label_in_phy(phy_folder, {0: "good", 2: "noise"})
+    result = import_phy_folder(phy_folder, analyzer_path=exported / "analyzer", job_kwargs=ONE_JOB)
+    assert result["new_analyzer"]
+    curated = si.load_sorting_analyzer(result["analyzer"])
+    assert list(curated.unit_ids) == list(analyzer.unit_ids[[1, 4, 6]])
+    ids = analyzer.unit_ids
+    assert labels_of(result) == {str(ids[1]): "good", str(ids[6]): "noise"}
+
+
 def test_an_exported_folder_needs_its_analyzer(exported, tmp_path):
     with pytest.raises(ValueError, match="give that analyzer"):
         import_phy_folder(phy_copy(exported, tmp_path, kilosort=False), job_kwargs=ONE_JOB)
@@ -226,4 +241,37 @@ def test_phy_output_in_section_3(exported, tmp_path, trained_project, project_co
     assert [entry["path"] for entry in applied] == [str(exported / "analyzer")]
     labels = pd.read_csv(f"{applied[0]['output_folder']}/{applied[0]['output_name']}__labels.csv", dtype=str)
     assert dict(zip(labels["unit_id"], labels["quality"])) == {"0": "good", "1": "noise"}
+    window.close()
+
+
+@pytest.mark.parametrize("has_recording", [True, False])
+def test_merges_needing_the_raw_recording_can_be_left_out(tmp_path, qapp, monkeypatch, has_recording):
+    import PyQt5.QtWidgets as QtWidgets
+    from unitrefine.main import MainWindow, UnitRefineProject
+
+    project = UnitRefineProject(tmp_path / "project")
+    project.save()
+    window = MainWindow(project)
+    result = dict(status="hard_merge_required", message="", total_spikes=1000, has_recording=has_recording,
+                  merges=[dict(unit_ids=[3, 8], new_unit_id=12, num_spikes=40)])
+
+    shown = []
+
+    def click(button_text):
+        def exec_(box):
+            shown.append((box.text(), [button.text() for button in box.buttons()]))
+            next(button for button in box.buttons() if button.text() == button_text).click()
+        return exec_
+
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", click("Leave them out"))
+    assert window.ask_about_hard_merges(result) == "--leave_out_hard_merges"
+    text, buttons = shown[-1]
+    assert "3, 8 → 12 (40 spikes)" in text and "40 of the 1000 spikes (4%)" in text
+    # merging from the raw recording is only offered when the analyzer has it
+    assert ("Merge from the raw recording" in buttons) == has_recording
+    if has_recording:
+        monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", click("Merge from the raw recording"))
+        assert window.ask_about_hard_merges(result) == "--allow_hard_merge"
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", click("Cancel"))
+    assert window.ask_about_hard_merges(result) is None
     window.close()
