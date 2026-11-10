@@ -4,7 +4,7 @@ import pytest
 import spikeinterface.full as si
 from spikeinterface.exporters import export_to_phy
 
-from unitrefine.phy_curation import apply_phy_curation, phy_to_curation
+from unitrefine.phy_curation import apply_phy_curation, curate_from_phy, phy_to_curation
 
 
 @pytest.fixture(scope="module", params=[str, int])
@@ -130,6 +130,40 @@ def test_wrong_sorting(analyzer, phy_folder):
         phy_to_curation(phy_folder, other)
 
 
+def test_only_some_units_exported(analyzer, tmp_path):
+    # e.g. an automatic curation removed units 0 and 2 before the export: phy numbers the units
+    # 1, 3, 4, 5 as 0, 1, 2, 3, and cluster_si_unit_ids.tsv keeps their SpikeInterface ids
+    phy_folder = tmp_path / "phy"
+    subset = analyzer.select_units([as_id(analyzer, u) for u in [1, 3, 4, 5]])
+    export_to_phy(subset, phy_folder, compute_pc_features=False, copy_binary=False, verbose=False)
+
+    def split(clusters, units):  # split phy unit 1 (unit 3) into the new phy clusters 4 and 5
+        in_unit = np.flatnonzero(units == 1)
+        clusters[in_unit[: len(in_unit) // 2]] = 4
+        clusters[in_unit[len(in_unit) // 2 :]] = 5
+
+    edit_clusters(phy_folder, split)
+    write_labels(phy_folder, {0: "good", 2: "mua", 3: "good", 4: "noise", 5: "good"})
+    # phy saves the si_unit_id column again for the clusters it did not change; it is not a label
+    write_labels(phy_folder, {0: 1, 2: 4, 3: 5}, name="si_unit_id")
+    curated = apply_phy_curation(analyzer, phy_folder)
+
+    # units 0 and 2 are removed; the split pieces of unit 3 get new ids, also not the removed ones
+    assert ids_of(curated) == [1, 4, 5, 6, 7]
+    assert np.array_equal(spikes_of(curated.sorting, [6, 7]), spikes_of(analyzer.sorting, [3]))
+    assert quality_of(curated) == {1: "good", 4: "MUA", 5: "good", 6: "noise", 7: "good"}
+    assert "si_unit_id" not in curated.sorting.get_property_keys()
+
+
+def test_only_some_units_exported_and_only_labels_changed(analyzer, tmp_path):
+    phy_folder = tmp_path / "phy"
+    export_to_phy(analyzer.select_units([as_id(analyzer, u) for u in [2, 5]]), phy_folder,
+                  compute_pc_features=False, copy_binary=False, verbose=False)
+    write_labels(phy_folder, {0: "noise", 1: "good"})
+    curated = apply_phy_curation(analyzer, phy_folder)
+    assert quality_of(curated) == {2: "noise", 5: "good"}
+
+
 def test_custom_columns_not_copied_to_new_units(analyzer, phy_folder):
     # phy copies custom columns to both halves of a split, only the quality label should be kept
     def split(clusters, units):
@@ -166,11 +200,30 @@ def test_hard_merge_needs_confirmation(tmp_path):
         clusters[np.isin(units, pair)] = 6
 
     edit_clusters(phy_folder, merge)
-    with pytest.raises(HardMergeRequired, match="raw recording"):
+    other = next(u for u in range(6) if u not in pair)
+    write_labels(phy_folder, {6: "good", other: "noise"})
+    with pytest.raises(HardMergeRequired, match="raw recording") as error:
         apply_phy_curation(analyzer, phy_folder)
+    # the GUI shows which merges and how many spikes
+    num_spikes = int(analyzer.sorting.count_num_spikes_per_unit(outputs="array")[pair].sum())
+    merged = dict(unit_ids=[as_id(analyzer, u) for u in pair], new_unit_id=as_id(analyzer, 6), num_spikes=num_spikes)
+    assert error.value.merges == [merged]
+    assert error.value.total_spikes == analyzer.sorting.count_total_num_spikes()
+    assert error.value.has_recording
 
     curated = apply_phy_curation(analyzer, phy_folder, allow_hard_merge=True)
     assert ids_of(curated) == sorted(set(range(7)) - set(pair))
+
+    # without the raw recording, the merged unit can be left out: the rest is curated as in phy
+    analyzer_without_recording = analyzer.copy()
+    analyzer_without_recording._recording = None
+    with pytest.raises(HardMergeRequired) as error:
+        curate_from_phy(analyzer_without_recording, phy_folder)
+    assert not error.value.has_recording
+    curated, left_out = curate_from_phy(analyzer_without_recording, phy_folder, hard_merges="leave_out")
+    assert ids_of(curated) == sorted(set(range(6)) - set(pair))
+    assert left_out == [merged]
+    assert quality_of(curated)[other] == "noise"
 
 
 def test_merge_then_split(analyzer, phy_folder):

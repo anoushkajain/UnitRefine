@@ -311,39 +311,48 @@ def analyzer_from_kilosort(phy_folder, output_folder, recording_path=None, gain_
     return analyzer, kilosort_phy_labels(phy_folder, sorting.unit_ids), how_read
 
 
-def analyzer_from_exported(phy_folder, analyzer_path, output_folder, allow_hard_merge=False, job_kwargs=None):
+def analyzer_from_exported(phy_folder, analyzer_path, output_folder, hard_merges="ask", job_kwargs=None):
     """
-    Applies Phy's curation to the analyzer exported to Phy. Returns (analyzer path, labels): the analyzer itself
-    if Phy only changed labels, else the curated analyzer saved to `output_folder`.
+    Applies Phy's curation to the analyzer exported to Phy. Returns (analyzer path, labels, whether a new analyzer
+    was saved, merged units left out): the analyzer itself if Phy only changed labels, else the curated analyzer
+    saved to `output_folder`. `hard_merges` is what to do with merges which need the raw recording (see
+    phy_curation.curate_from_phy): "ask" (raise HardMergeRequired), "do" or "leave_out".
     """
     import spikeinterface.full as si
-    from unitrefine.phy_curation import apply_phy_curation
+    from unitrefine.phy_curation import curate_from_phy
 
     report_step("reading")
     analyzer = si.load_sorting_analyzer(analyzer_path)
     report_step("curation")
-    curated = apply_phy_curation(analyzer, phy_folder, allow_hard_merge=allow_hard_merge, **(job_kwargs or {}))
+    curated, left_out = curate_from_phy(analyzer, phy_folder, hard_merges=hard_merges, **(job_kwargs or {}))
+    if left_out:
+        print(f"Left out {len(left_out)} merged units which need the raw recording "
+              f"({sum(m['num_spikes'] for m in left_out)} spikes): "
+              + ", ".join(f"{m['unit_ids']} -> {m['new_unit_id']}" for m in left_out), flush=True)
     labels = phy_labels(curated.sorting)
-    if not phy_has_edits(phy_folder):
+    # if only some units were exported, the curated analyzer has just those and must be saved
+    if not phy_has_edits(phy_folder) and curated.get_num_units() == analyzer.get_num_units():
         print("Phy only changed labels, so the analyzer is used as it is.", flush=True)
-        return Path(analyzer_path), labels, False
+        return Path(analyzer_path), labels, False, left_out
     report_step("saving")
     curated.save_as(format="binary_folder", folder=output_folder)
-    return Path(output_folder), labels, True
+    return Path(output_folder), labels, True, left_out
 
 
 def import_phy_folder(phy_folder, output_folder=None, labels_path=None, analyzer_path=None, recording_path=None,
-                      gain_to_uV=None, allow_hard_merge=False, job_kwargs=None, reuse=False):
+                      gain_to_uV=None, hard_merges="ask", job_kwargs=None, reuse=False):
     """
     Makes the analyzer for a Phy folder (see the module description) and saves Phy's labels to `labels_path`
     (default: next to the analyzer, as <analyzer>_phy_labels.csv). Returns a dict with the `analyzer` path,
-    the `labels` path and their number, the `kind` of Phy folder, and whether a `new_analyzer` was saved.
+    the `labels` path and their number, the `kind` of Phy folder, whether a `new_analyzer` was saved, and the
+    merged units `left_out` because they need the raw recording (see `hard_merges` in analyzer_from_exported).
     With `reuse`, the analyzer saved earlier in `output_folder` is used, and only the labels are read again.
     """
     phy_folder = Path(phy_folder)
     kind = phy_folder_kind(phy_folder)
     output_folder = default_output_folder(phy_folder) if output_folder is None else Path(output_folder)
     start_time = time.time()
+    left_out = []
 
     if reuse:
         import spikeinterface.full as si
@@ -360,9 +369,11 @@ def import_phy_folder(phy_folder, output_folder=None, labels_path=None, analyzer
     else:
         if analyzer_path is None:
             raise ValueError(f"{phy_folder} was exported from a SpikeInterface analyzer: give that analyzer (--analyzer).")
-        analyzer_folder, labels, new_analyzer = analyzer_from_exported(phy_folder, analyzer_path, output_folder,
-                                                                      allow_hard_merge, job_kwargs)
+        analyzer_folder, labels, new_analyzer, left_out = analyzer_from_exported(
+            phy_folder, analyzer_path, output_folder, hard_merges, job_kwargs)
         details = dict(exported_from=str(analyzer_path))
+        if left_out:
+            details["left_out_merged_units"] = left_out
 
     if new_analyzer:
         with open(output_folder / MADE_FROM_PHY_FILE, "w") as f:
@@ -377,7 +388,7 @@ def import_phy_folder(phy_folder, output_folder=None, labels_path=None, analyzer
     print(f"{len(labels)} units have a Phy label {counts}. Saved in {labels_path}.", flush=True)
     print(f"Done in {time.time() - start_time:.0f} s. Analyzer: {analyzer_folder}", flush=True)
     return dict(kind=kind, analyzer=str(analyzer_folder), new_analyzer=new_analyzer, labels=str(labels_path),
-                num_labels=len(labels))
+                num_labels=len(labels), left_out=left_out)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -395,7 +406,11 @@ def main(argv=None):
     parser.add_argument("--analyzer", default=None, help="For a Phy folder exported from an analyzer: that analyzer")
     parser.add_argument("--recording", default=None, help="For Kilosort output: the recording, if params.py doesn't find it")
     parser.add_argument("--gain_to_uv", type=float, default=None, help=f"For a plain binary recording: µV per bit ({GAIN_HINT})")
-    parser.add_argument("--allow_hard_merge", action="store_true", help="Do merges which need the raw recording")
+    hard_merge_options = parser.add_mutually_exclusive_group()
+    hard_merge_options.add_argument("--allow_hard_merge", action="store_true",
+                                    help="Do merges which need the raw recording (slow)")
+    hard_merge_options.add_argument("--leave_out_hard_merges", action="store_true",
+                                    help="Leave out the merged units which need the raw recording")
     parser.add_argument("--reuse", action="store_true", help="Use the analyzer made earlier in --output; only read the labels again")
     parser.add_argument("--n_jobs", type=float, default=-1, help="Processes to use (-1: all cores)")
     args = parser.parse_args(argv)
@@ -404,13 +419,15 @@ def main(argv=None):
     try:
         result = import_phy_folder(
             args.phy_folder, output_folder=args.output, labels_path=args.labels, analyzer_path=args.analyzer,
-            recording_path=args.recording, gain_to_uV=args.gain_to_uv, allow_hard_merge=args.allow_hard_merge,
+            recording_path=args.recording, gain_to_uV=args.gain_to_uv,
+            hard_merges="do" if args.allow_hard_merge else "leave_out" if args.leave_out_hard_merges else "ask",
             job_kwargs=dict(n_jobs=int(args.n_jobs) if args.n_jobs >= 1 or args.n_jobs == -1 else args.n_jobs),
             reuse=args.reuse,
         )
         result["status"] = "done"
     except HardMergeRequired as e:
-        result = dict(status="hard_merge_required", message=str(e))
+        result = dict(status="hard_merge_required", message=str(e), merges=e.merges, total_spikes=e.total_spikes,
+                      has_recording=e.has_recording)
     except NeedsGain as e:
         result = dict(status="needs_gain", message=str(e))
     except RecordingNotFound as e:

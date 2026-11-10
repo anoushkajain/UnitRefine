@@ -22,11 +22,23 @@ QUALITY_OPTIONS = ["good", "MUA", "noise"]
 UNLABELED = {"", "unsorted", "nan"}
 
 # cluster_*.tsv files that phy or export_to_phy write but that are not curation labels
-NON_LABEL_FILES = {"cluster_group.tsv", "cluster_info.tsv", "cluster_si_unit_ids.tsv", "cluster_channel_group.tsv"}
+# (phy shows the si_unit_id column of cluster_si_unit_ids.tsv and saves it as cluster_si_unit_id.tsv)
+NON_LABEL_FILES = {"cluster_group.tsv", "cluster_info.tsv", "cluster_si_unit_ids.tsv", "cluster_si_unit_id.tsv",
+                   "cluster_channel_group.tsv"}
 
 
 class HardMergeRequired(RuntimeError):
-    """Raised when phy merges can only be applied as hard merges, which need the raw recording."""
+    """
+    Raised when phy merges can only be applied as hard merges, which need the raw recording.
+    `merges` lists them as dicts with unit_ids, new_unit_id and num_spikes, `total_spikes` is the number of
+    spikes in the phy folder, and `has_recording` tells whether the analyzer's raw recording is available.
+    """
+
+    def __init__(self, message, merges=(), total_spikes=0, has_recording=False):
+        super().__init__(message)
+        self.merges = list(merges)
+        self.total_spikes = total_spikes
+        self.has_recording = has_recording
 
 
 def phy_to_curation(phy_folder, sorting_or_analyzer):
@@ -38,7 +50,8 @@ def phy_to_curation(phy_folder, sorting_or_analyzer):
     phy_folder : str | Path
         Folder created by `export_to_phy` and curated in phy.
     sorting_or_analyzer : BaseSorting | SortingAnalyzer
-        The sorting or analyzer that was exported to phy.
+        The sorting or analyzer that was exported to phy. If only some of its units were exported,
+        the other units are removed.
 
     Returns
     -------
@@ -52,12 +65,18 @@ def phy_to_curation(phy_folder, sorting_or_analyzer):
     if sorting.get_num_segments() != 1:
         raise ValueError("export_to_phy only exports the first segment, so only single-segment sortings are supported")
 
-    unit_ids = sorting.unit_ids.tolist()
+    all_unit_ids = sorting.unit_ids.tolist()
+    # the units in phy's order; units that were not exported are removed by the curation
+    unit_ids = _exported_unit_ids(phy_folder, all_unit_ids)
+    exported = set(unit_ids)
+    removed = [u for u in all_unit_ids if u not in exported]
     original = np.load(phy_folder / "spike_templates.npy").ravel()  # unit index per spike, never changed by phy
     final = np.load(phy_folder / "spike_clusters.npy").ravel()  # cluster per spike after curation
 
     counts = np.bincount(original, minlength=len(unit_ids))
-    if len(final) != len(original) or not np.array_equal(counts, sorting.count_num_spikes_per_unit(outputs="array")):
+    spikes_per_unit = sorting.count_num_spikes_per_unit(outputs="dict")
+    if (len(final) != len(original) or len(counts) != len(unit_ids)
+            or not np.array_equal(counts, [spikes_per_unit[u] for u in unit_ids])):
         raise ValueError(f"{phy_folder} does not match the spike counts of this sorting - was it exported from it?")
 
     # final clusters of each unit's spikes, in spike train order
@@ -78,8 +97,8 @@ def phy_to_curation(phy_folder, sorting_or_analyzer):
         for cluster, _ in parts:
             split_pieces[cluster] = split_pieces.get(cluster, 0) + 1
 
-    used_ids = set(unit_ids)
-    use_str = len(unit_ids) > 0 and isinstance(unit_ids[0], str)
+    used_ids = set(all_unit_ids)  # ids of removed units are not given to new units either
+    use_str = len(all_unit_ids) > 0 and isinstance(all_unit_ids[0], str)
 
     def take_id(preferred=None):
         new_id = None if preferred is None else (str(preferred) if use_str else preferred)
@@ -138,6 +157,8 @@ def phy_to_curation(phy_folder, sorting_or_analyzer):
         warnings.warn(f"Ignored labels of {len(unknown)} cluster ids that no longer exist in {phy_folder}")
 
     steps = []
+    if removed:
+        steps.append(dict(format_version="2", unit_ids=all_unit_ids, removed=removed))
     if splits:
         steps.append(dict(format_version="2", unit_ids=unit_ids, splits=splits))
     if merges:
@@ -153,6 +174,30 @@ def phy_to_curation(phy_folder, sorting_or_analyzer):
     return SequentialCuration(curation_steps=steps), cluster_to_unit
 
 
+def _exported_unit_ids(phy_folder, unit_ids):
+    """
+    The unit ids of the sorting in phy's order (phy unit 0, 1, ...). export_to_phy numbers the units from 0
+    and saves their SpikeInterface ids in cluster_si_unit_ids.tsv, which also tells which units were exported
+    (e.g. only some units). Without the file, all units are assumed to be exported in order.
+    """
+    mapping_file = Path(phy_folder) / "cluster_si_unit_ids.tsv"
+    if not mapping_file.is_file():
+        return list(unit_ids)
+    mapping = pd.read_csv(mapping_file, sep="\t", dtype=str).sort_values(
+        "cluster_id", key=lambda ids: ids.astype(int))
+    if not np.array_equal(mapping["cluster_id"].astype(int), np.arange(len(mapping))):
+        raise ValueError(f"{mapping_file} should list the phy units 0, 1, 2, ... once each")
+    by_str = {str(u): u for u in unit_ids}
+    missing = [u for u in mapping["si_unit_id"] if u not in by_str]
+    if missing:
+        raise ValueError(f"{phy_folder} has units that are not in this sorting, e.g. {missing[:5]} - "
+                         "was it exported from it?")
+    return [by_str[u] for u in mapping["si_unit_id"]]
+
+
+HARD_MERGE_CHOICES = ("ask", "do", "leave_out")
+
+
 def apply_phy_curation(sorting_or_analyzer, phy_folder, allow_hard_merge=False, **apply_curation_kwargs):
     """
     Apply a phy curation to the sorting or analyzer that was exported to phy.
@@ -163,7 +208,8 @@ def apply_phy_curation(sorting_or_analyzer, phy_folder, allow_hard_merge=False, 
 
     Merges are done as fast soft merges, which do not need the raw recording. Units that share too
     few channels can only be merged with a hard merge, which recomputes the merged units from the
-    raw recording. This is only done with `allow_hard_merge=True`.
+    raw recording. This is only done with `allow_hard_merge=True`. To leave these merged units out
+    instead, use `curate_from_phy(..., hard_merges="leave_out")`.
 
     Parameters
     ----------
@@ -182,50 +228,96 @@ def apply_phy_curation(sorting_or_analyzer, phy_folder, allow_hard_merge=False, 
     curated : BaseSorting | SortingAnalyzer
         The curated sorting or analyzer (in memory).
     """
+    hard_merges = "do" if allow_hard_merge else "ask"
+    curated, _ = curate_from_phy(sorting_or_analyzer, phy_folder, hard_merges=hard_merges, **apply_curation_kwargs)
+    return curated
+
+
+def curate_from_phy(sorting_or_analyzer, phy_folder, hard_merges="ask", **apply_curation_kwargs):
+    """
+    Like `apply_phy_curation`, with a choice for the merges which need a hard merge (`hard_merges`):
+
+    - "ask": raise HardMergeRequired, which lists them, so the user can choose.
+    - "do": do them as hard merges, from the raw recording attached to the analyzer (slow).
+    - "leave_out": leave the merged units out, so the raw recording is not needed. Their spikes are
+      not in the curated sorting or analyzer.
+
+    Returns
+    -------
+    curated : BaseSorting | SortingAnalyzer
+        The curated sorting or analyzer (in memory).
+    left_out : list of dict
+        The merged units which were left out, with unit_ids, new_unit_id and num_spikes.
+    """
+    if hard_merges not in HARD_MERGE_CHOICES:
+        raise ValueError(f"hard_merges must be one of {HARD_MERGE_CHOICES}, not {hard_merges!r}")
     curation, cluster_to_unit = phy_to_curation(phy_folder, sorting_or_analyzer)
     steps = list(curation.curation_steps)
 
-    hard_merges = _merges_needing_hard_mode(
+    spike_times = np.load(Path(phy_folder) / "spike_times.npy").ravel()
+    final = np.load(Path(phy_folder) / "spike_clusters.npy").ravel()
+    clusters, cluster_spikes = np.unique(final, return_counts=True)
+    spikes_per_unit = {cluster_to_unit[int(c)]: int(n) for c, n in zip(clusters, cluster_spikes)}
+
+    needing_hard = _merges_needing_hard_mode(
         sorting_or_analyzer, steps, apply_curation_kwargs.get("sparsity_overlap", 0.75)
     )
-    if hard_merges:
-        merge_list = ", ".join(f"{m.unit_ids} -> {m.new_unit_id}" for m in hard_merges)
-        if not allow_hard_merge:
+    merges_info = [
+        dict(unit_ids=list(m.unit_ids), new_unit_id=m.new_unit_id, num_spikes=spikes_per_unit[m.new_unit_id])
+        for m in needing_hard
+    ]
+    left_out = []
+    if needing_hard:
+        merge_list = ", ".join(f"{m.unit_ids} -> {m.new_unit_id}" for m in needing_hard)
+        has_recording = sorting_or_analyzer.has_recording() or sorting_or_analyzer.has_temporary_recording()
+        details = dict(merges=merges_info, total_spikes=len(final), has_recording=has_recording)
+        if hard_merges == "ask":
+            num_spikes = sum(m["num_spikes"] for m in merges_info)
             raise HardMergeRequired(
-                f"{len(hard_merges)} merges cannot be done as a fast soft merge because the units share too few "
-                f"channels: {merge_list}. These merges need a hard merge, which requires the raw recording and will "
-                "likely take a long time to run. Check that the merges are intended, attach the recording with "
-                "`analyzer.set_temporary_recording(recording)` and rerun with `allow_hard_merge=True`."
+                f"{len(needing_hard)} merges cannot be done as a fast soft merge because the units share too few "
+                f"channels: {merge_list}. These {len(needing_hard)} merged units have {num_spikes} of the "
+                f"{len(final)} spikes ({100 * num_spikes / max(len(final), 1):.2g}%). Either leave them out "
+                "(`hard_merges='leave_out'`), or do a hard merge, which requires the raw recording and will likely "
+                "take a long time to run: check that the merges are intended, attach the recording with "
+                "`analyzer.set_temporary_recording(recording)` and rerun with `hard_merges='do'`.",
+                **details,
             )
-        if not (sorting_or_analyzer.has_recording() or sorting_or_analyzer.has_temporary_recording()):
+        if hard_merges == "leave_out":
+            steps = _leave_out_hard_merges(steps, needing_hard)
+            left_out = merges_info
+            warnings.warn(f"Left out {len(left_out)} merged units which need the raw recording: {merge_list}")
+            needing_hard = []
+        elif not has_recording:
             raise HardMergeRequired(
                 f"Hard merges of {merge_list} need the raw recording, but the analyzer has none. "
-                "Attach it with `analyzer.set_temporary_recording(recording)`."
+                "Attach it with `analyzer.set_temporary_recording(recording)`.",
+                **details,
             )
-        steps = _separate_hard_merges(steps, hard_merges)
+        else:
+            steps = _separate_hard_merges(steps, needing_hard)
 
     # steps are applied one by one: apply_curation (spikeinterface 0.105) wraps job kwargs of a
     # SequentialCuration in a `job_kwargs` argument, which breaks hard merges
     curated = sorting_or_analyzer
     for step in steps:
         kwargs = dict(apply_curation_kwargs)
-        if hard_merges and step.merges and step.merges[0] in hard_merges:
+        if needing_hard and step.merges and step.merges[0] in needing_hard:
             kwargs["merging_mode"] = "hard"
         curated = apply_curation(curated, step, **kwargs)
 
     sorting = getattr(curated, "sorting", curated)
-    spike_times = np.load(Path(phy_folder) / "spike_times.npy").ravel()
-    final = np.load(Path(phy_folder) / "spike_clusters.npy").ravel()
+    left_out_ids = {m["new_unit_id"] for m in left_out}
     order = np.argsort(final, kind="stable")
-    clusters, starts = np.unique(final[order], return_index=True)
+    starts = np.unique(final[order], return_index=True)[1]
     mismatched = [
         cluster
         for cluster, cluster_times in zip(clusters, np.split(spike_times[order], starts[1:]))
-        if not np.array_equal(sorting.get_unit_spike_train(cluster_to_unit[int(cluster)]), cluster_times)
+        if cluster_to_unit[int(cluster)] not in left_out_ids
+        and not np.array_equal(sorting.get_unit_spike_train(cluster_to_unit[int(cluster)]), cluster_times)
     ]
     if mismatched:
         raise RuntimeError(f"{len(mismatched)} curated units do not match their phy clusters, e.g. {mismatched[:5]}")
-    return curated
+    return curated, left_out
 
 
 def _merges_needing_hard_mode(sorting_or_analyzer, steps, sparsity_overlap):
@@ -241,6 +333,26 @@ def _merges_needing_hard_mode(sorting_or_analyzer, steps, sparsity_overlap):
     groups = [[parents.get(u, u) for u in merge.unit_ids] for merge in merges]
     mergeable = sorting_or_analyzer.are_units_mergeable(groups, sparsity_overlap=sparsity_overlap)
     return [merge for merge, group in zip(merges, groups) if not mergeable[tuple(group)]]
+
+
+def _leave_out_hard_merges(steps, hard_merges):
+    """
+    Remove the units of the hard merges instead of merging them, and drop the merged units from the
+    label step (the last step), so the curation can be applied without the raw recording.
+    """
+    merged_ids = {m.new_unit_id for m in hard_merges}
+    new_steps = []
+    for index, step in enumerate(steps):
+        values = step.model_dump()
+        if step.merges:
+            values["merges"] = [m for m, merge in zip(values["merges"], step.merges) if merge not in hard_merges]
+            values["removed"] = list(values.get("removed") or []) + [u for m in hard_merges for u in m.unit_ids]
+        if index == len(steps) - 1:
+            values["unit_ids"] = [u for u in values["unit_ids"] if u not in merged_ids]
+            values["manual_labels"] = [label for label in values.get("manual_labels") or []
+                                       if label["unit_id"] not in merged_ids]
+        new_steps.append(Curation(**values))
+    return new_steps
 
 
 def _separate_hard_merges(steps, hard_merges):
